@@ -4,56 +4,89 @@
 <h1>{{ o.name }}
   <span class="tag {{ 'hy' if o.brand=='HY' else 'mc' }}">{{ 'Hennessy' if o.brand=='HY' else 'Moёt' }}</span>
 </h1>
-<p class="sub">{{ o.city }} · {{ o.channel }}-трейд · команда «{{ o.team }}» · план июль–декабрь: <b>{{ plan.target }}</b> бут.</p>
+<p class="sub">{{ o.city }} · {{ o.channel }}-трейд · команда «{{ o.team }}» · план июль–декабрь: <b>{{ plan.target }}</b> бут.
+{% if plan.is_chain %}· <span class="tag">сеть · один план</span>{% endif %}</p>
 
+<h2>Выполнение по волнам</h2>
 <div class="kpis">
-  {% for wv in waves %}
-    {% set pct=(wv.calc.ach*100)|round|int %}
-    <div class="kpi {{ 'alt' if wv.w==2 }}">
-      <div class="l">Волна {{ wv.w }} · {{ wv.period }}</div>
+  {% for w in [1,2,3] %}
+    {% set c = summ.waves[w] %}{% set pct=(c.ach*100)|round|int %}
+    <div class="kpi {{ 'alt' if w==2 }}">
+      <div class="l">Волна {{ w }} · {{ wavep['w'+w|string] }}</div>
       <div class="v">{{ pct }}%</div>
-      <div class="muted" style="color:#bcd3f0">план {{ wv.calc.target }} · факт {{ wv.calc.bottles }} бут · приз {{ fmt(wv.calc.total) }} ₸</div>
+      <div class="muted" style="color:#bcd3f0">план {{ c.target }} · факт {{ c.bottles }} бут · приз {{ fmt(c.total) }} ₸</div>
     </div>
   {% endfor %}
 </div>
 
-<h2>Ввод факта продаж по SKU</h2>
-<p class="sub">Штуки проданных бутылок за каждый месяц. Ставки: волна 1 — 3/5/7%, волны 2–3 — 2/4/6% (при выполнении 90/100/110%).</p>
+<h2>Прогресс по месяцам</h2>
+<div class="card" style="padding:12px">
+<table>
+  <thead><tr><th class="l">Месяц</th><th>Волна</th><th>План (полволны)</th><th>Факт, бут.</th><th>%</th><th>Дней внесено</th></tr></thead>
+  <tbody>
+  {% for m in MONTHS %}{% set mm = summ.months[m] %}{% set pct=(mm.ach*100)|round|int %}
+    <tr>
+      <td class="l">{{ MONTH_RU[m] }}{% if m in closed %} <span class="chip closed">закрыт</span>{% endif %}</td>
+      <td>{{ month_wave[m] }}</td><td>{{ mm.target }}</td><td>{{ mm.bottles }}</td>
+      <td><div class="bar {{ 'ok' if pct>=100 else 'mid' if pct>=90 else 'low' if pct>0 else '' }}"><span style="width:{{ [pct,120]|min }}%"></span><em>{{ pct }}%</em></div></td>
+      <td>{{ mm.days }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
 
-{% for m in months %}
-  {% set is_closed = m in closed %}
-  <div class="card">
-    <div class="rowflex" style="justify-content:space-between">
-      <h2 style="margin:0">{{ MONTH_RU[m] }} 2026
-        <span class="chip {{ 'closed' if is_closed else 'open' }}">{{ 'закрыт' if is_closed else 'открыт' }}</span>
-      </h2>
-      <span class="muted">волна {{ 1 if m in ['2026-07','2026-08'] else 2 if m in ['2026-09','2026-10'] else 3 }}</span>
+{% if can_edit or user.role=='admin' %}
+<h2>{{ 'Изменить отгрузку за ' + edit_date if edit_date else 'Добавить отгрузку за день' }}</h2>
+<div class="card">
+  <form method="post" action="{{ url_for('save_entry', oid=o.id) }}">
+    <div class="rowflex" style="margin-bottom:12px">
+      <label class="muted">Дата отгрузки:&nbsp;</label>
+      <input type="date" name="date" min="2026-07-01" max="2026-12-31"
+             value="{{ edit_date }}" required style="width:auto">
+      <span class="muted">штуки проданных бутылок по каждому SKU за этот день</span>
     </div>
-    <form method="post" action="{{ url_for('save_entry', oid=o.id) }}">
-      <input type="hidden" name="month" value="{{ m }}">
-      <table style="margin-top:10px">
-        <thead><tr><th class="l">SKU</th><th>Объём, л</th><th>Прайс, ₸</th><th>Факт, шт.</th></tr></thead>
-        <tbody>
-        {% for s in skus %}
-          <tr>
-            <td class="l">{{ s.name }}</td>
-            <td>{{ s.vol }}</td>
-            <td>{{ fmt(s.price_kzt) }}</td>
-            <td style="max-width:120px">
-              <input class="num" type="number" step="1" min="0" name="sku_{{ s.name }}"
-                     value="{{ (entries.get((m,s.name),0) or 0)|int if entries.get((m,s.name)) else '' }}"
-                     {{ 'disabled' if is_closed and can_edit }}>
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      {% if not (is_closed and can_edit) %}
-        <button class="btn sm" style="margin-top:10px">Сохранить {{ MONTH_RU[m] }}</button>
-      {% else %}
-        <p class="muted" style="margin-top:10px">Месяц закрыт администратором — правки недоступны.</p>
-      {% endif %}
-    </form>
-  </div>
-{% endfor %}
+    <table>
+      <thead><tr><th class="l">SKU</th><th>Объём, л</th><th>Прайс, ₸</th><th>Штук за день</th></tr></thead>
+      <tbody>
+      {% for s in skus %}
+        <tr><td class="l">{{ s.name }}</td><td>{{ s.vol }}</td><td>{{ fmt(s.price_kzt) }}</td>
+        <td style="max-width:130px"><input class="num" type="number" step="1" min="0" name="sku_{{ s.name }}"
+          value="{{ (edit_vals.get(s.name) or '')|int if edit_vals.get(s.name) else '' }}"></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <button class="btn sm" style="margin-top:10px">Сохранить отгрузку</button>
+    {% if edit_date %}<a class="btn sm ghost" href="{{ url_for('outlet', oid=o.id) }}" style="margin-left:8px">Новая дата</a>{% endif %}
+  </form>
+</div>
+{% endif %}
+
+<h2>Журнал отгрузок ({{ jdays|length }})</h2>
+<div class="card" style="padding:12px">
+{% if jdays %}
+<table>
+  <thead><tr><th class="l">Дата</th><th>Волна</th><th>Бут. (экв.)</th><th class="l">SKU</th><th></th></tr></thead>
+  <tbody>
+  {% for d in jdays %}
+    <tr>
+      <td class="l">{{ d.date }}{% if d.closed %} <span class="chip closed">закрыт</span>{% endif %}</td>
+      <td>{{ month_wave[d.month] }}</td><td>{{ d.bottles }}</td>
+      <td class="l muted">{{ d.line }}</td>
+      <td>
+        {% if not (d.closed and can_edit) %}
+          <a class="btn sm ghost" href="{{ url_for('outlet', oid=o.id, date=d.date) }}">изменить</a>
+          <form method="post" action="{{ url_for('delete_day', oid=o.id) }}" style="display:inline"
+                onsubmit="return confirm('Удалить отгрузку за {{ d.date }}?')">
+            <input type="hidden" name="date" value="{{ d.date }}">
+            <button class="btn sm danger">×</button>
+          </form>
+        {% else %}<span class="muted">закрыт</span>{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="muted center">Пока нет внесённых отгрузок. Добавьте первую выше.</p>{% endif %}
+</div>
 {% endblock %}

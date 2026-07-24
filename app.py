@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """MH Motivational Programme 2026 — трекер команды KWS.
-Flask + SQLAlchemy. Деплой: Railway (Postgres через DATABASE_URL) или локально (SQLite)."""
+Flask + SQLAlchemy. Ежедневный журнал отгрузок → расчёт по волнам и месяцам.
+Деплой: Railway (Postgres через DATABASE_URL) или локально (SQLite)."""
 import os, json, functools, secrets
 from datetime import datetime
+from collections import defaultdict
 from flask import (Flask, render_template, request, redirect, url_for, session,
                    flash, abort, jsonify)
 from models import db, User, Outlet, Entry, MonthClose
@@ -11,7 +13,6 @@ import program as P
 def create_app():
     app = Flask(__name__)
     app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
-    # Railway отдаёт DATABASE_URL для Postgres; локально — SQLite-файл.
     uri = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(os.path.dirname(__file__), 'tracker.db'))
     if uri.startswith('postgres://'):
         uri = uri.replace('postgres://', 'postgresql://', 1)
@@ -25,7 +26,6 @@ def create_app():
     return app
 
 # ---------- seed ----------
-# команда -> (логин, отображаемое имя, пароль по умолчанию)
 TEAM_MANAGER = {
     'Алматы OFF': ('almaty_off', 'Алматы офф-трейд', 'almaty-off-26'),
     'Алматы ON':  ('almaty_on',  'Алматы он-трейд',  'almaty-on-26'),
@@ -38,32 +38,28 @@ def seed():
     if User.query.first():
         return
     creds = {}
-    # админ
     admin = User(username='admin', name='Дидар (KWS)', role='admin')
     apw = os.environ.get('ADMIN_PASSWORD', 'kws-admin-2026')
     admin.set_password(apw); db.session.add(admin); db.session.flush()
     creds['admin'] = apw
-    # менеджеры по командам (пароли по умолчанию; можно сменить через код/БД)
     mgr = {}
     for team, (uname, disp, pw) in TEAM_MANAGER.items():
         u = User(username=uname, name=disp, role='manager', team=team)
         u.set_password(pw); db.session.add(u); db.session.flush()
         mgr[team] = u; creds[uname] = pw
-    # точки
     for pl in P.PLANS:
         m = mgr.get(pl['team'])
         db.session.add(Outlet(id=pl['id'], name=pl['name'], brand=pl['brand'],
                               city=pl['city'], channel=pl['channel'], team=pl['team'],
                               manager_id=m.id if m else None))
     db.session.commit()
-    # сохраняем сгенерированные пароли в файл (для выдачи менеджерам)
     try:
         with open(os.path.join(os.path.dirname(__file__), 'SEED_CREDENTIALS.json'), 'w', encoding='utf-8') as f:
             json.dump(creds, f, ensure_ascii=False, indent=1)
     except Exception:
         pass
 
-# ---------- auth helpers ----------
+# ---------- auth ----------
 def current_user():
     uid = session.get('uid')
     return User.query.get(uid) if uid else None
@@ -81,12 +77,65 @@ def login_required(role=None):
         return wrap
     return deco
 
+def closed_months():
+    return {m.month for m in MonthClose.query.all()}
+
+# ---------- агрегация из ежедневного журнала ----------
+def entries_map(oid):
+    """{(date, sku): units} по всем отгрузкам точки."""
+    return {(e.date, e.sku): e.units for e in Entry.query.filter_by(outlet_id=oid)}
+
+def sum_units(emap, skus, dates):
+    u = {}
+    for s in skus:
+        tot = 0
+        for d in dates:
+            tot += emap.get((d, s['name']), 0) or 0
+        u[s['name']] = tot
+    return u
+
+def dates_in_month(emap, month):
+    return sorted({d for (d, s) in emap if d.startswith(month)})
+
+def outlet_summary(o, emap=None):
+    plan = P.PLAN_BY_ID[o.id]
+    skus = P.sku_list(o.brand)
+    if emap is None:
+        emap = entries_map(o.id)
+    waves = {}
+    earned = total_bottles = 0
+    for w in (1, 2, 3):
+        dates = [d for m in P.WAVE_MONTHS[w] for d in dates_in_month(emap, m)]
+        c = P.compute_wave(plan, w, sum_units(emap, skus, dates))
+        waves[w] = c; earned += c['total']; total_bottles += c['bottles']
+    months = {}
+    for m in P.MONTHS:
+        dts = dates_in_month(emap, m)
+        months[m] = P.compute_month(plan, m, sum_units(emap, skus, dts))
+        months[m]['days'] = len(dts)
+    ann_target = plan['target'] or 1
+    return dict(o=o, plan=plan, waves=waves, months=months, earned=earned,
+                bottles=round(total_bottles, 1), ann_ach=total_bottles / ann_target,
+                days=sum(m['days'] for m in months.values()),
+                section=P.section_of(plan))
+
+def group_sections(summaries):
+    by = defaultdict(list)
+    for s in summaries:
+        by[s['section']].append(s)
+    out = []
+    for sec in P.SECTION_ORDER:
+        if by.get(sec):
+            out.append((sec, sorted(by[sec], key=lambda r: -r['plan']['target'])))
+    return out
+
 # ---------- routes ----------
 def register_routes(app):
 
     @app.context_processor
     def inject():
-        return dict(user=current_user(), MONTH_RU=P.MONTH_RU, fmt=lambda n: f'{int(n):,}'.replace(',', ' '))
+        return dict(user=current_user(), MONTH_RU=P.MONTH_RU, MONTHS=P.MONTHS,
+                    fmt=lambda n: f'{int(round(n)):,}'.replace(',', ' '))
 
     @app.route('/')
     def index():
@@ -115,11 +164,11 @@ def register_routes(app):
     @login_required('manager')
     def dashboard():
         u = current_user()
-        outlets = Outlet.query.filter_by(manager_id=u.id).all()
-        rows = [outlet_summary(o) for o in outlets]
-        return render_template('manager.html', rows=rows, waves=P.WAVE_PERIODS)
+        rows = [outlet_summary(o) for o in Outlet.query.filter_by(manager_id=u.id).all()]
+        return render_template('manager.html', sections=group_sections(rows),
+                               waves=P.WAVE_PERIODS, all_rows=rows)
 
-    @app.route('/outlet/<int:oid>', methods=['GET'])
+    @app.route('/outlet/<int:oid>')
     @login_required()
     def outlet(oid):
         o = Outlet.query.get_or_404(oid)
@@ -128,20 +177,31 @@ def register_routes(app):
             abort(403)
         plan = P.PLAN_BY_ID[o.id]
         skus = P.sku_list(o.brand)
-        entries = {(e.month, e.sku): e.units for e in Entry.query.filter_by(outlet_id=o.id)}
-        closed = {m.month for m in MonthClose.query.all()}
-        waves = []
-        for w in (1, 2, 3):
-            months = P.WAVE_MONTHS[w]
-            units = {}
-            for m in months:
-                for s in skus:
-                    units[s['name']] = units.get(s['name'], 0) + (entries.get((m, s['name']), 0) or 0)
-            waves.append(dict(w=w, period=P.WAVE_PERIODS[f'w{w}'], months=months,
-                              calc=P.compute_wave(plan, w, units)))
-        return render_template('outlet.html', o=o, plan=plan, skus=skus, months=P.MONTHS,
-                               entries=entries, closed=closed, waves=waves,
-                               can_edit=(u.role != 'admin'))
+        emap = entries_map(o.id)
+        closed = closed_months()
+        summ = outlet_summary(o, emap)
+        # редактируемая дата (?date=) — префилл значений этого дня
+        edit_date = request.args.get('date', '')
+        edit_vals = {}
+        if edit_date:
+            for s in skus:
+                edit_vals[s['name']] = emap.get((edit_date, s['name']), '')
+        # журнал по дням
+        journal = defaultdict(lambda: defaultdict(float))
+        for (d, sk), v in emap.items():
+            if v:
+                journal[d][sk] = v
+        jdays = []
+        for d in sorted(journal, reverse=True):
+            units = journal[d]
+            b = P.eq_bottles(o.brand, units)
+            jdays.append(dict(date=d, month=d[:7], bottles=round(b, 1),
+                              closed=d[:7] in closed,
+                              line=', '.join(f'{k}×{int(v)}' for k, v in units.items() if v)))
+        return render_template('outlet.html', o=o, plan=plan, skus=skus, summ=summ,
+                               closed=closed, jdays=jdays, edit_date=edit_date,
+                               edit_vals=edit_vals, can_edit=(u.role != 'admin'),
+                               wavep=P.WAVE_PERIODS, month_wave=P.MONTH_WAVE)
 
     @app.route('/outlet/<int:oid>/save', methods=['POST'])
     @login_required()
@@ -150,109 +210,113 @@ def register_routes(app):
         u = current_user()
         if u.role != 'admin' and o.manager_id != u.id:
             abort(403)
-        closed = {m.month for m in MonthClose.query.all()}
-        month = request.form['month']
-        if month in closed and u.role != 'admin':
-            flash('Месяц закрыт — правки недоступны'); return redirect(url_for('outlet', oid=oid))
+        date = request.form.get('date', '').strip()
+        if not (date and date[:7] in P.MONTHS and date[:4] == '2026'):
+            flash('Укажите корректную дату отгрузки (июль–декабрь 2026)')
+            return redirect(url_for('outlet', oid=oid))
+        if date[:7] in closed_months() and u.role != 'admin':
+            flash('Месяц закрыт — правки недоступны')
+            return redirect(url_for('outlet', oid=oid))
         for s in P.sku_list(o.brand):
             raw = request.form.get('sku_' + s['name'], '').strip().replace(' ', '')
             val = float(raw) if raw else 0.0
-            e = Entry.query.filter_by(outlet_id=o.id, month=month, sku=s['name']).first()
-            if not e:
-                e = Entry(outlet_id=o.id, month=month, sku=s['name'])
-                db.session.add(e)
-            e.units = val; e.updated_by = u.id; e.updated_at = datetime.utcnow()
+            e = Entry.query.filter_by(outlet_id=o.id, date=date, sku=s['name']).first()
+            if val:
+                if not e:
+                    e = Entry(outlet_id=o.id, date=date, sku=s['name']); db.session.add(e)
+                e.units = val; e.updated_by = u.id; e.updated_at = datetime.utcnow()
+            elif e:
+                db.session.delete(e)
         db.session.commit()
-        flash(f'Сохранено: {P.MONTH_RU[month]}')
+        flash(f'Отгрузка за {date} сохранена')
+        return redirect(url_for('outlet', oid=oid))
+
+    @app.route('/outlet/<int:oid>/delete', methods=['POST'])
+    @login_required()
+    def delete_day(oid):
+        o = Outlet.query.get_or_404(oid)
+        u = current_user()
+        if u.role != 'admin' and o.manager_id != u.id:
+            abort(403)
+        date = request.form.get('date', '')
+        if date[:7] in closed_months() and u.role != 'admin':
+            flash('Месяц закрыт'); return redirect(url_for('outlet', oid=oid))
+        for e in Entry.query.filter_by(outlet_id=o.id, date=date).all():
+            db.session.delete(e)
+        db.session.commit()
+        flash(f'Отгрузка за {date} удалена')
         return redirect(url_for('outlet', oid=oid))
 
     # ----- админ -----
     @app.route('/admin')
     @login_required('admin')
     def admin():
-        outlets = Outlet.query.all()
-        rows = [outlet_summary(o) for o in outlets]
-        closed = sorted(m.month for m in MonthClose.query.all())
-        # агрегаты по волнам и командам
+        rows = [outlet_summary(o) for o in Outlet.query.all()]
+        closed = sorted(closed_months())
+        month = request.args.get('month') or last_active_month(rows)
         wave_tot = {1: 0, 2: 0, 3: 0}
         team_tot = {}
         for r in rows:
             for w in (1, 2, 3):
                 wave_tot[w] += r['waves'][w]['total']
-            team_tot.setdefault(r['o'].team, {'prize': 0, 'plan': 0, 'n': 0})
-            team_tot[r['o'].team]['prize'] += r['earned']
-            team_tot[r['o'].team]['n'] += 1
-        return render_template('admin.html', rows=rows, closed=closed, months=P.MONTHS,
-                               wave_tot=wave_tot, team_tot=team_tot,
-                               totals=P.program_totals(), lead=leaderboards(rows))
+            t = team_tot.setdefault(r['o'].team, {'prize': 0, 'n': 0})
+            t['prize'] += r['earned']; t['n'] += 1
+        return render_template('admin.html', sections=group_sections(rows), all_rows=rows,
+                               closed=closed, wave_tot=wave_tot, team_tot=team_tot,
+                               totals=P.program_totals(), lead=leaderboards(rows, month),
+                               month=month)
 
     @app.route('/admin/close', methods=['POST'])
     @login_required('admin')
     def close_month():
-        month = request.form['month']
-        if month in P.MONTHS and not MonthClose.query.get(month):
-            db.session.add(MonthClose(month=month, closed_by=current_user().id))
-            db.session.commit()
-            flash(f'Месяц {P.MONTH_RU[month]} закрыт')
+        m = request.form['month']
+        if m in P.MONTHS and not MonthClose.query.get(m):
+            db.session.add(MonthClose(month=m, closed_by=current_user().id)); db.session.commit()
+            flash(f'Месяц {P.MONTH_RU[m]} закрыт')
         return redirect(url_for('admin'))
 
     @app.route('/admin/reopen', methods=['POST'])
     @login_required('admin')
     def reopen_month():
-        month = request.form['month']
-        mc = MonthClose.query.get(month)
+        m = request.form['month']
+        mc = MonthClose.query.get(m)
         if mc:
             db.session.delete(mc); db.session.commit()
-            flash(f'Месяц {P.MONTH_RU[month]} открыт заново')
+            flash(f'Месяц {P.MONTH_RU[m]} открыт заново')
         return redirect(url_for('admin'))
 
     @app.route('/leaderboard')
     @login_required()
     def leaderboard():
         rows = [outlet_summary(o) for o in Outlet.query.all()]
-        return render_template('leaderboard.html', lead=leaderboards(rows))
+        month = request.args.get('month') or last_active_month(rows)
+        return render_template('leaderboard.html', lead=leaderboards(rows, month),
+                               month=month)
 
     @app.route('/healthz')
     def healthz():
         return jsonify(ok=True, plans=len(P.PLANS))
 
-# ---------- summaries ----------
-def outlet_summary(o):
-    plan = P.PLAN_BY_ID[o.id]
-    skus = P.sku_list(o.brand)
-    entries = {(e.month, e.sku): e.units for e in Entry.query.filter_by(outlet_id=o.id)}
-    filled_months = {m for (m, s), v in entries.items() if v}
-    waves = {}
-    earned = 0
-    total_bottles = 0
-    for w in (1, 2, 3):
-        units = {}
-        for m in P.WAVE_MONTHS[w]:
-            for s in skus:
-                units[s['name']] = units.get(s['name'], 0) + (entries.get((m, s['name']), 0) or 0)
-        c = P.compute_wave(plan, w, units)
-        waves[w] = c
-        earned += c['total']
-        total_bottles += c['bottles']
-    ann_target = plan['target'] or 1
-    return dict(o=o, plan=plan, waves=waves, earned=earned,
-                filled=len(filled_months), bottles=round(total_bottles, 1),
-                ann_ach=total_bottles / ann_target)
+# ---------- рейтинг ----------
+def last_active_month(rows):
+    active = [m for m in P.MONTHS if any(r['months'][m]['days'] for r in rows)]
+    return active[-1] if active else P.MONTHS[0]
 
-def leaderboards(rows):
-    # самые растущие ТТ — по годовому % выполнения (только с фактом)
-    growing = sorted([r for r in rows if r['bottles'] > 0], key=lambda r: -r['ann_ach'])[:10]
-    # менеджеры по заполнению — доля месяцев с фактом
-    by_mgr = {}
+def leaderboards(rows, month):
+    # растущие точки — по % выполнения ВЫБРАННОГО месяца (с фактом)
+    growing = sorted([r for r in rows if r['months'][month]['days']],
+                     key=lambda r: -r['months'][month]['ach'])[:10]
+    # команды по заполнению за месяц (сколько точек внесли отгрузки)
+    by = {}
     for r in rows:
         t = r['o'].team
-        by_mgr.setdefault(t, {'team': t, 'filled': 0, 'cells': 0, 'earned': 0, 'n': 0})
-        by_mgr[t]['filled'] += r['filled']
-        by_mgr[t]['cells'] += 6
-        by_mgr[t]['earned'] += r['earned']
-        by_mgr[t]['n'] += 1
-    mgr = sorted(by_mgr.values(), key=lambda m: -(m['filled'] / m['cells'] if m['cells'] else 0))
-    return dict(growing=growing, managers=mgr)
+        d = by.setdefault(t, {'team': t, 'filled': 0, 'n': 0, 'earned': 0})
+        d['n'] += 1
+        if r['months'][month]['days']:
+            d['filled'] += 1
+        d['earned'] += r['earned']
+    managers = sorted(by.values(), key=lambda m: -(m['filled'] / m['n'] if m['n'] else 0))
+    return dict(growing=growing, managers=managers, month=month)
 
 app = create_app()
 

@@ -30,15 +30,19 @@ class Outlet(db.Model):
     manager = db.relationship('User', backref='outlets')
 
 class Entry(db.Model):
-    """Факт продаж: строка на (ТТ, месяц, SKU)."""
+    """Факт отгрузки: строка на (ТТ, дата, SKU). Ежедневный журнал."""
     id = db.Column(db.Integer, primary_key=True)
     outlet_id = db.Column(db.Integer, db.ForeignKey('outlet.id'), index=True)
-    month = db.Column(db.String(7), index=True)           # '2026-07'
+    date = db.Column(db.String(10), index=True)           # '2026-07-15'
     sku = db.Column(db.String(60))
     units = db.Column(db.Float, default=0)
     updated_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
-    __table_args__ = (db.UniqueConstraint('outlet_id', 'month', 'sku', name='uix_entry'),)
+    __table_args__ = (db.UniqueConstraint('outlet_id', 'date', 'sku', name='uix_entry'),)
+
+    @property
+    def month(self):
+        return self.date[:7]
 
 class MonthClose(db.Model):
     """Закрытый (заблокированный) месяц — менеджеры не могут править."""

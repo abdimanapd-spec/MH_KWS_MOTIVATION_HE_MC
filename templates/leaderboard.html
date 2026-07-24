@@ -3,29 +3,35 @@
 <h1>🏆 Рейтинг</h1>
 <p class="sub">Ежемесячные подарки до 15 000 ₸: самой растущей точке и самой аккуратной команде по заполнению.</p>
 <div class="card">
+  <form method="get" style="margin-bottom:12px">
+    <label class="muted">Месяц: </label>
+    <select name="month" onchange="this.form.submit()" style="padding:6px;border-radius:7px;border:1px solid var(--powder)">
+      {% for m in MONTHS %}<option value="{{ m }}" {{ 'selected' if m==month }}>{{ MONTH_RU[m] }}</option>{% endfor %}
+    </select>
+  </form>
   <div class="rowflex" style="align-items:flex-start;gap:30px">
     <div style="flex:1;min-width:280px">
-      <h2 style="margin-top:0;font-size:15px">Самые растущие точки</h2>
+      <h2 style="margin-top:0;font-size:15px">Самые растущие точки · {{ MONTH_RU[month] }}</h2>
       <table>
-        <thead><tr><th></th><th class="l">Точка</th><th>Выполнение</th></tr></thead>
+        <thead><tr><th></th><th class="l">Точка</th><th>% месяца</th></tr></thead>
         <tbody>
         {% for r in lead.growing %}
           <tr><td class="center medal">{{ ['🥇','🥈','🥉'][loop.index0] if loop.index0<3 else loop.index }}</td>
           <td class="l">{{ r.o.name }} <span class="muted">· {{ r.o.city }}</span></td>
-          <td>{{ (r.ann_ach*100)|round|int }}%</td></tr>
+          <td>{{ (r.months[month].ach*100)|round|int }}%</td></tr>
         {% endfor %}
-        {% if not lead.growing %}<tr><td colspan="3" class="muted center">Пока нет данных о продажах</td></tr>{% endif %}
+        {% if not lead.growing %}<tr><td colspan="3" class="muted center">Нет отгрузок за {{ MONTH_RU[month] }}</td></tr>{% endif %}
         </tbody>
       </table>
     </div>
     <div style="flex:1;min-width:280px">
-      <h2 style="margin-top:0;font-size:15px">Команды по заполнению</h2>
+      <h2 style="margin-top:0;font-size:15px">Команды по заполнению · {{ MONTH_RU[month] }}</h2>
       <table>
-        <thead><tr><th></th><th class="l">Команда</th><th>Заполнено</th></tr></thead>
+        <thead><tr><th></th><th class="l">Команда</th><th>Точек с фактом</th></tr></thead>
         <tbody>
         {% for m in lead.managers %}
           <tr><td class="center medal">{{ ['🥇','🥈','🥉'][loop.index0] if loop.index0<3 else loop.index }}</td>
-          <td class="l">{{ m.team }}</td><td>{{ (100*m.filled/m.cells)|round|int }}%</td></tr>
+          <td class="l">{{ m.team }}</td><td>{{ m.filled }}/{{ m.n }}</td></tr>
         {% endfor %}
         </tbody>
       </table>

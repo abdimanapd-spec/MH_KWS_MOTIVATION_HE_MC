@@ -97,6 +97,24 @@ def compute_wave(plan, wave, units_by_sku):
 def month_wave(month):
     return MONTH_WAVE[month]
 
+# группировка как в Excel: блок СЕТИ, затем город × канал
+SECTION_ORDER = ['СЕТИ', 'Алматы OFF', 'Алматы ON', 'Астана OFF', 'Астана ON', 'Регионы']
+
+def section_of(plan):
+    return 'СЕТИ' if plan.get('is_chain') else plan['team']
+
+def month_target(plan, month):
+    """План месяца = половина плана волны (волна = 2 месяца)."""
+    return hf(wave_target(plan, MONTH_WAVE[month]) / 2)
+
+def compute_month(plan, month, units_by_sku):
+    brand, channel = plan['brand'], plan['channel']
+    tgt = month_target(plan, month)
+    bottles = eq_bottles(brand, units_by_sku)
+    turn = turnover_kzt(brand, channel, units_by_sku)
+    ach = bottles / tgt if tgt else 0.0
+    return dict(bottles=round(bottles, 1), target=tgt, ach=ach, turnover=hf(turn))
+
 def program_totals():
     """Максимальные (при 110%) призы по программе — для дашборда."""
     t = dict(prize110=0, team110=0, n=len(PLANS))

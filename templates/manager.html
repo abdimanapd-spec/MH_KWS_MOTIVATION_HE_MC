@@ -1,41 +1,38 @@
 {% extends 'base.html' %}
 {% block body %}
 <h1>Мои точки</h1>
-<p class="sub">{{ user.name }} · вносите факт продаж по SKU за каждый месяц — выполнение и приз считаются автоматически.</p>
+<p class="sub">{{ user.name }} · вносите отгрузки по дням — выполнение волны и приз считаются автоматически.</p>
 
-{% set earned = rows|sum(attribute='earned') %}
+{% set earned = all_rows|sum(attribute='earned') %}
 <div class="kpis">
-  <div class="kpi"><div class="l">Мои точки</div><div class="v">{{ rows|length }}</div></div>
+  <div class="kpi"><div class="l">Мои точки</div><div class="v">{{ all_rows|length }}</div></div>
   <div class="kpi alt"><div class="l">Заработано (факт)</div><div class="v">{{ fmt(earned) }} ₸</div></div>
-  <div class="kpi"><div class="l">Заполнено месяцев</div><div class="v">{{ rows|sum(attribute='filled') }}/{{ rows|length*6 }}</div></div>
+  <div class="kpi"><div class="l">Отгрузок внесено</div><div class="v">{{ all_rows|sum(attribute='days') }}</div></div>
 </div>
 
-<div class="card">
+{% for sec, rows in sections %}
+<h2>{{ '🔗 СЕТИ · центральный план' if sec=='СЕТИ' else sec }}</h2>
+<div class="card" style="padding:12px">
 <table>
   <thead><tr>
-    <th class="l">Точка / сеть</th><th>Марка</th><th>План (бут.)</th>
+    <th class="l">Точка / сеть</th><th>Марка</th><th>План</th>
     <th>Волна 1</th><th>Волна 2</th><th>Волна 3</th><th>Приз, ₸</th><th></th>
   </tr></thead>
   <tbody>
   {% for r in rows %}
     <tr>
       <td class="l"><b>{{ r.o.name }}</b><br><span class="muted">{{ r.o.city }} · {{ r.o.channel }}</span></td>
-      <td class="center"><span class="tag {{ 'hy' if r.o.brand=='HY' else 'mc' }}">{{ 'Hennessy' if r.o.brand=='HY' else 'Moёt' }}</span></td>
+      <td class="center"><span class="tag {{ 'hy' if r.o.brand=='HY' else 'mc' }}">{{ r.o.brand }}</span></td>
       <td>{{ r.plan.target }}</td>
-      {% for w in [1,2,3] %}
-        {% set c = r.waves[w] %}
-        {% set pct = (c.ach*100)|round|int %}
-        <td>
-          <div class="bar {{ 'ok' if pct>=100 else 'mid' if pct>=90 else 'low' if pct>0 else '' }}">
-            <span style="width:{{ [pct,110]|min }}%"></span><em>{{ pct }}%</em>
-          </div>
-        </td>
+      {% for w in [1,2,3] %}{% set c=r.waves[w] %}{% set pct=(c.ach*100)|round|int %}
+        <td><div class="bar {{ 'ok' if pct>=100 else 'mid' if pct>=90 else 'low' if pct>0 else '' }}"><span style="width:{{ [pct,110]|min }}%"></span><em>{{ pct }}%</em></div></td>
       {% endfor %}
       <td><b>{{ fmt(r.earned) }}</b></td>
-      <td><a class="btn sm" href="{{ url_for('outlet', oid=r.o.id) }}">Внести факт</a></td>
+      <td><a class="btn sm" href="{{ url_for('outlet', oid=r.o.id) }}">Внести отгрузку</a></td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
 </div>
+{% endfor %}
 {% endblock %}
