@@ -1,0 +1,47 @@
+# -*- coding: utf-8 -*-
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
+
+db = SQLAlchemy()
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(64), unique=True, nullable=False)
+    name = db.Column(db.String(120))
+    role = db.Column(db.String(16), default='manager')   # admin | manager
+    team = db.Column(db.String(40))                       # для менеджера: его команда/канал
+    pw_hash = db.Column(db.String(256))
+
+    def set_password(self, pw):
+        self.pw_hash = generate_password_hash(pw)
+
+    def check_password(self, pw):
+        return check_password_hash(self.pw_hash, pw)
+
+class Outlet(db.Model):
+    id = db.Column(db.Integer, primary_key=True)          # = plan id из program_data
+    name = db.Column(db.String(200))
+    brand = db.Column(db.String(4))
+    city = db.Column(db.String(120))
+    channel = db.Column(db.String(4))
+    team = db.Column(db.String(40))
+    manager_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    manager = db.relationship('User', backref='outlets')
+
+class Entry(db.Model):
+    """Факт продаж: строка на (ТТ, месяц, SKU)."""
+    id = db.Column(db.Integer, primary_key=True)
+    outlet_id = db.Column(db.Integer, db.ForeignKey('outlet.id'), index=True)
+    month = db.Column(db.String(7), index=True)           # '2026-07'
+    sku = db.Column(db.String(60))
+    units = db.Column(db.Float, default=0)
+    updated_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint('outlet_id', 'month', 'sku', name='uix_entry'),)
+
+class MonthClose(db.Model):
+    """Закрытый (заблокированный) месяц — менеджеры не могут править."""
+    month = db.Column(db.String(7), primary_key=True)     # '2026-07'
+    closed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    closed_by = db.Column(db.Integer)

@@ -1,0 +1,5 @@
+tracker.db
+SEED_CREDENTIALS.json
+__pycache__/
+*.pyc
+.env

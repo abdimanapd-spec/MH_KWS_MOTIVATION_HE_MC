@@ -1,0 +1,62 @@
+:root{
+  --navy:#0D1F3C; --cobalt:#1A3A6E; --royal:#2E5FA3; --steel:#4472C4;
+  --sky:#6FA8DC; --powder:#BDD7EE; --ice:#DEEAF1; --frost:#F2F7FC; --input:#C5D9F1;
+  --gold:#B8912F; --green:#2E8B57; --red:#C0392B; --grey:#6B7B95;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Century Gothic','Futura','Trebuchet MS',sans-serif;color:#1c2534;background:#eef1f5}
+a{color:var(--royal);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1180px;margin:0 auto;padding:0 18px}
+header.top{background:var(--navy);color:#fff;padding:12px 0}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
+header.top .brand{font-size:17px;font-weight:bold;letter-spacing:.3px}
+header.top nav a{color:#cfe0f5;margin-left:16px;font-size:14px}
+header.top nav a:hover{color:#fff}
+.badge{display:inline-block;background:var(--royal);color:#fff;border-radius:20px;padding:2px 11px;font-size:12px}
+h1{color:var(--navy);font-size:24px;margin:22px 0 6px}
+h2{color:var(--navy);font-size:18px;margin:24px 0 10px}
+.sub{color:var(--grey);font-size:13px;margin:0 0 18px}
+.flash{background:#fff6d8;border:1px solid var(--gold);color:#7a5c00;padding:9px 14px;border-radius:8px;margin:14px 0}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(13,31,60,.08);padding:18px;margin:14px 0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:16px 0}
+.kpi{background:linear-gradient(160deg,var(--cobalt),var(--navy));color:#fff;border-radius:12px;padding:16px}
+.kpi .v{font-size:26px;font-weight:bold;margin-top:4px}
+.kpi .l{font-size:12px;color:#bcd3f0;text-transform:uppercase;letter-spacing:.4px}
+.kpi.alt{background:linear-gradient(160deg,var(--royal),var(--cobalt))}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid #e6ecf3}
+th{background:var(--steel);color:#fff;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0}
+th.l,td.l{text-align:left}
+tr:nth-child(even) td{background:var(--frost)}
+tbody tr:hover td{background:var(--ice)}
+.tag{font-size:11px;padding:1px 7px;border-radius:10px;background:var(--powder);color:var(--navy);white-space:nowrap}
+.tag.hy{background:#e7d9b8;color:#6b5115}
+.tag.mc{background:#d8e6f5;color:var(--cobalt)}
+.bar{background:#e6ecf3;border-radius:6px;height:16px;position:relative;overflow:hidden;min-width:90px}
+.bar>span{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--sky)}
+.bar.ok>span{background:var(--green)}
+.bar.mid>span{background:var(--steel)}
+.bar.low>span{background:var(--red)}
+.bar em{position:relative;z-index:1;font-style:normal;font-size:11px;color:#12213b;line-height:16px;padding-left:6px}
+.btn{display:inline-block;background:var(--royal);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-family:inherit}
+.btn:hover{background:var(--cobalt);text-decoration:none}
+.btn.ghost{background:#fff;color:var(--royal);border:1px solid var(--royal)}
+.btn.sm{padding:5px 11px;font-size:12.5px}
+.btn.danger{background:var(--red)}
+input[type=text],input[type=password],input[type=number]{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--powder);border-radius:7px;width:100%}
+input.num{text-align:right;background:var(--frost)}
+input.num:focus{background:#fff;border-color:var(--royal);outline:none}
+.chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:6px}
+.chip.closed{background:#f3d9d6;color:var(--red)}
+.chip.open{background:#d9efe0;color:var(--green)}
+.center{text-align:center}
+.muted{color:var(--grey);font-size:12px}
+.landing{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(150deg,var(--navy),var(--cobalt) 60%,var(--royal));padding:24px}
+.landing .box{background:#fff;border-radius:18px;padding:36px;max-width:560px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.landing h1{font-size:26px;margin:6px 0}
+.loginbox{max-width:380px;margin:60px auto}
+.rowflex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.medal{font-size:15px;width:26px;display:inline-block;text-align:center}
+@media(max-width:640px){th,td{padding:6px 6px;font-size:12px}header.top .brand{font-size:14px}}

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мотивационная программа 2026</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="landing">
+  <div class="box">
+    <div style="font-size:40px">🍾</div>
+    <h1>Мотивационная программа 2026</h1>
+    <p class="sub">KWS Kazakhstan · Hennessy &amp; Moёt &amp; Chandon · июль–декабрь 2026</p>
+    <div class="kpis" style="margin:24px 0">
+      <div class="kpi"><div class="l">Участников</div><div class="v">{{ prog.n_plans }}</div></div>
+      <div class="kpi alt"><div class="l">Волны</div><div class="v">3</div></div>
+      <div class="kpi"><div class="l">Макс. призовой фонд</div><div class="v">{{ '{:,}'.format((totals.max_total/1000000)|round(1)).replace(',',' ') }} млн ₸</div></div>
+    </div>
+    <a class="btn" href="{{ url_for('login') }}" style="font-size:16px;padding:12px 30px">Войти в трекер</a>
+    <p class="muted" style="margin-top:22px">Менеджеры KWS вносят факт продаж по своим точкам. Расчёт выплат — автоматически по факту SKU.</p>
+  </div>
+</div>
+</body>
+</html>

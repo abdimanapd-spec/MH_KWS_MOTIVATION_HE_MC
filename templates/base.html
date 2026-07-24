@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Мотивационная программа 2026{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% if user %}
+<header class="top">
+  <div class="wrap">
+    <div class="brand">🍾 Мотивационная программа 2026 · Hennessy &amp; Moёt</div>
+    <nav>
+      {% if user.role == 'admin' %}
+        <a href="{{ url_for('admin') }}">Дашборд</a>
+        <a href="{{ url_for('leaderboard') }}">Рейтинг</a>
+      {% else %}
+        <a href="{{ url_for('dashboard') }}">Мои точки</a>
+        <a href="{{ url_for('leaderboard') }}">Рейтинг</a>
+      {% endif %}
+      <a href="{{ url_for('logout') }}">Выйти ({{ user.name }})</a>
+    </nav>
+  </div>
+</header>
+{% endif %}
+<div class="wrap">
+  {% with msgs = get_flashed_messages() %}
+    {% for m in msgs %}<div class="flash">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block body %}{% endblock %}
+  <p class="muted center" style="margin:40px 0 20px">Выплаты только по верифицированным продажам (деплешны дистрибьютора). Суммы в тенге.</p>
+</div>
+</body>
+</html>

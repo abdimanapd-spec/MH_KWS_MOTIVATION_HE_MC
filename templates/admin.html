@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block body %}
+<h1>Дашборд KWS</h1>
+<p class="sub">Итоги программы, прогресс по волнам, месячное закрытие и рейтинг.</p>
+
+{% set earned = rows|sum(attribute='earned') %}
+<div class="kpis">
+  <div class="kpi"><div class="l">Участников</div><div class="v">{{ rows|length }}</div></div>
+  <div class="kpi alt"><div class="l">Заработано (факт)</div><div class="v">{{ fmt(earned) }} ₸</div></div>
+  <div class="kpi"><div class="l">Макс. фонд (110%)</div><div class="v">{{ fmt(totals.max_total) }} ₸</div></div>
+  <div class="kpi alt"><div class="l">Заполнено месяцев</div><div class="v">{{ rows|sum(attribute='filled') }}/{{ rows|length*6 }}</div></div>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Месячное закрытие</h2>
+  <p class="sub">После закрытия месяца менеджеры не могут править факт. Волны: 1 (Июль–Авг), 2 (Сен–Окт), 3 (Ноя–Дек).</p>
+  <div class="rowflex">
+  {% for m in months %}
+    {% set is_closed = m in closed %}
+    <form method="post" action="{{ url_for('reopen_month' if is_closed else 'close_month') }}" style="display:inline">
+      <input type="hidden" name="month" value="{{ m }}">
+      <button class="btn sm {{ 'danger' if not is_closed else 'ghost' }}">
+        {{ MONTH_RU[m] }}: {{ 'открыть' if is_closed else 'закрыть' }}
+      </button>
+    </form>
+  {% endfor %}
+  </div>
+</div>
+
+<h2>Прогресс по командам</h2>
+<div class="kpis">
+  {% for team, d in team_tot.items() %}
+    <div class="kpi"><div class="l">{{ team }} ({{ d.n }})</div><div class="v">{{ fmt(d.prize) }} ₸</div></div>
+  {% endfor %}
+</div>
+
+<h2>Все точки</h2>
+<div class="card">
+<table>
+  <thead><tr>
+    <th class="l">Точка / сеть</th><th class="l">Команда</th><th>Марка</th><th>План</th>
+    <th>В1</th><th>В2</th><th>В3</th><th>Год %</th><th>Приз, ₸</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows|sort(attribute='ann_ach', reverse=true) %}
+    <tr>
+      <td class="l"><b>{{ r.o.name }}</b></td>
+      <td class="l muted">{{ r.o.team }}</td>
+      <td class="center"><span class="tag {{ 'hy' if r.o.brand=='HY' else 'mc' }}">{{ r.o.brand }}</span></td>
+      <td>{{ r.plan.target }}</td>
+      {% for w in [1,2,3] %}<td>{{ (r.waves[w].ach*100)|round|int }}%</td>{% endfor %}
+      <td><b>{{ (r.ann_ach*100)|round|int }}%</b></td>
+      <td>{{ fmt(r.earned) }}</td>
+      <td><a class="btn sm ghost" href="{{ url_for('outlet', oid=r.o.id) }}">Открыть</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>🏆 Рейтинг для подарков (до 15 000 ₸ / мес)</h2>
+<div class="card">
+  <div class="rowflex" style="align-items:flex-start;gap:30px">
+    <div style="flex:1;min-width:280px">
+      <h2 style="margin-top:0;font-size:15px">Самые растущие точки</h2>
+      <table>
+        <thead><tr><th></th><th class="l">Точка</th><th>Год %</th><th>Приз ₸</th></tr></thead>
+        <tbody>
+        {% for r in lead.growing %}
+          <tr><td class="center medal">{{ ['🥇','🥈','🥉'][loop.index0] if loop.index0<3 else loop.index }}</td>
+          <td class="l">{{ r.o.name }}</td><td>{{ (r.ann_ach*100)|round|int }}%</td><td>{{ fmt(r.earned) }}</td></tr>
+        {% endfor %}
+        {% if not lead.growing %}<tr><td colspan="4" class="muted center">Пока нет данных о продажах</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+    <div style="flex:1;min-width:280px">
+      <h2 style="margin-top:0;font-size:15px">Команды по заполнению</h2>
+      <table>
+        <thead><tr><th></th><th class="l">Команда</th><th>Заполнено</th><th>Приз ₸</th></tr></thead>
+        <tbody>
+        {% for m in lead.managers %}
+          <tr><td class="center medal">{{ ['🥇','🥈','🥉'][loop.index0] if loop.index0<3 else loop.index }}</td>
+          <td class="l">{{ m.team }}</td><td>{{ (100*m.filled/m.cells)|round|int }}%</td><td>{{ fmt(m.earned) }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
