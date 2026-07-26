@@ -15,6 +15,7 @@
       {% if user.role == 'admin' %}
         <a href="{{ url_for('admin') }}">Дашборд</a>
         <a href="{{ url_for('leaderboard') }}">Рейтинг</a>
+        <a href="{{ url_for('users') }}">Пользователи</a>
       {% else %}
         <a href="{{ url_for('dashboard') }}">Мои точки</a>
         <a href="{{ url_for('leaderboard') }}">Рейтинг</a>

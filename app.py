@@ -285,6 +285,79 @@ def register_routes(app):
             flash(f'Месяц {P.MONTH_RU[m]} открыт заново')
         return redirect(url_for('admin'))
 
+    # ----- пользователи (только админ) -----
+    @app.route('/admin/users')
+    @login_required('admin')
+    def users():
+        us = User.query.order_by(User.role.desc(), User.name).all()
+        cnt = {}
+        for o in Outlet.query.all():
+            cnt[o.manager_id] = cnt.get(o.manager_id, 0) + 1
+        free = Outlet.query.filter(Outlet.manager_id.is_(None)).count()
+        return render_template('users.html', users=us, cnt=cnt, free=free,
+                               teams=list(TEAM_MANAGER.keys()),
+                               new_pw=session.pop('new_pw', None))
+
+    @app.route('/admin/users/add', methods=['POST'])
+    @login_required('admin')
+    def user_add():
+        uname = request.form.get('username', '').strip().lower()
+        name = request.form.get('name', '').strip()
+        team = request.form.get('team', '').strip()
+        pw = request.form.get('password', '').strip() or (uname + '-26')
+        if not uname or not name:
+            flash('Укажите логин и имя'); return redirect(url_for('users'))
+        if User.query.filter_by(username=uname).first():
+            flash(f'Логин «{uname}» уже занят'); return redirect(url_for('users'))
+        u = User(username=uname, name=name, role='manager', team=team or None)
+        u.set_password(pw); db.session.add(u); db.session.commit()
+        session['new_pw'] = {'username': uname, 'password': pw}
+        flash(f'Менеджер {name} создан. Логин: {uname} · пароль: {pw}')
+        return redirect(url_for('user_outlets', uid=u.id))
+
+    @app.route('/admin/users/<int:uid>/password', methods=['POST'])
+    @login_required('admin')
+    def user_password(uid):
+        u = User.query.get_or_404(uid)
+        pw = request.form.get('password', '').strip()
+        if len(pw) < 4:
+            flash('Пароль слишком короткий (мин. 4 символа)'); return redirect(url_for('users'))
+        u.set_password(pw); db.session.commit()
+        session['new_pw'] = {'username': u.username, 'password': pw}
+        flash(f'Пароль для «{u.name}» обновлён: {pw}')
+        return redirect(url_for('users'))
+
+    @app.route('/admin/users/<int:uid>/delete', methods=['POST'])
+    @login_required('admin')
+    def user_delete(uid):
+        u = User.query.get_or_404(uid)
+        if u.role == 'admin':
+            flash('Админа удалить нельзя'); return redirect(url_for('users'))
+        for o in Outlet.query.filter_by(manager_id=u.id).all():
+            o.manager_id = None
+        db.session.delete(u); db.session.commit()
+        flash(f'Пользователь «{u.name}» удалён, его точки освобождены')
+        return redirect(url_for('users'))
+
+    @app.route('/admin/users/<int:uid>/outlets', methods=['GET', 'POST'])
+    @login_required('admin')
+    def user_outlets(uid):
+        u = User.query.get_or_404(uid)
+        if request.method == 'POST':
+            keep = {int(x) for x in request.form.getlist('oid')}
+            for o in Outlet.query.all():
+                if o.id in keep:
+                    o.manager_id = u.id
+                elif o.manager_id == u.id:
+                    o.manager_id = None
+            db.session.commit()
+            flash(f'Точки для «{u.name}» сохранены ({len(keep)})')
+            return redirect(url_for('users'))
+        rows = [dict(o=o, plan=P.PLAN_BY_ID[o.id], section=P.section_of(P.PLAN_BY_ID[o.id]))
+                for o in Outlet.query.all()]
+        return render_template('user_outlets.html', u=u,
+                               sections=group_sections(rows))
+
     @app.route('/leaderboard')
     @login_required()
     def leaderboard():

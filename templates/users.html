@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block body %}
+<h1>Пользователи</h1>
+<p class="sub">Персональный логин для каждого менеджера. Точки закрепляются за конкретным человеком — менеджер видит и заполняет только свои.</p>
+
+{% if new_pw %}
+<div class="card" style="border-color:#b98d3a;background:#fffaf0">
+  <b>Передайте менеджеру доступ:</b><br>
+  логин <code>{{ new_pw.username }}</code> · пароль <code>{{ new_pw.password }}</code>
+  <p class="muted" style="margin-bottom:0">Пароль показывается один раз — в базе он хранится только в зашифрованном виде.</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">Добавить менеджера</h2>
+  <form method="post" action="{{ url_for('user_add') }}">
+    <div class="rowflex" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div><div class="muted">Имя и фамилия</div>
+        <input name="name" required placeholder="Айгерим Сатыбалдиева" style="min-width:220px"></div>
+      <div><div class="muted">Логин</div>
+        <input name="username" required placeholder="aigerim" style="min-width:150px"></div>
+      <div><div class="muted">Команда</div>
+        <select name="team" style="padding:8px;border-radius:7px;border:1px solid var(--powder)">
+          <option value="">— без команды —</option>
+          {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+        </select></div>
+      <div><div class="muted">Пароль</div>
+        <input name="password" placeholder="если пусто: логин-26" style="min-width:170px"></div>
+      <button class="btn sm">Создать и выбрать точки</button>
+    </div>
+  </form>
+</div>
+
+<h2>Все пользователи <span class="muted" style="font-size:13px">(точек без владельца: {{ free }})</span></h2>
+<div class="card" style="padding:12px">
+<table>
+  <thead><tr><th class="l">Имя</th><th class="l">Логин</th><th class="l">Роль / команда</th><th>Точек</th><th class="l">Новый пароль</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td class="l"><b>{{ u.name }}</b></td>
+      <td class="l"><code>{{ u.username }}</code></td>
+      <td class="l">{% if u.role=='admin' %}<span class="tag">админ</span>{% else %}{{ u.team or '—' }}{% endif %}</td>
+      <td>{{ cnt.get(u.id, 0) }}</td>
+      <td class="l">
+        <form method="post" action="{{ url_for('user_password', uid=u.id) }}" style="display:flex;gap:6px">
+          <input name="password" placeholder="новый пароль" style="width:140px">
+          <button class="btn sm ghost">задать</button>
+        </form>
+      </td>
+      <td>
+        {% if u.role!='admin' %}
+        <a class="btn sm ghost" href="{{ url_for('user_outlets', uid=u.id) }}">Точки</a>
+        <form method="post" action="{{ url_for('user_delete', uid=u.id) }}" style="display:inline"
+              onsubmit="return confirm('Удалить пользователя {{ u.name }}? Его точки останутся без владельца.')">
+          <button class="btn sm danger">×</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted">Отгрузки, внесённые удалённым менеджером, сохраняются — удаляется только доступ.</p>
+{% endblock %}
