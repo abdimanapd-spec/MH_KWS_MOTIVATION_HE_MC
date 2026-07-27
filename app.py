@@ -107,6 +107,7 @@ def outlet_summary(o, emap=None):
     for w in (1, 2, 3):
         dates = [d for m in P.WAVE_MONTHS[w] for d in dates_in_month(emap, m)]
         c = P.compute_wave(plan, w, sum_units(emap, skus, dates))
+        c['gap'] = P.wave_gap(plan, w, c)
         waves[w] = c; earned += c['total']; total_bottles += c['bottles']
     months = {}
     for m in P.MONTHS:
@@ -114,10 +115,26 @@ def outlet_summary(o, emap=None):
         months[m] = P.compute_month(plan, m, sum_units(emap, skus, dts))
         months[m]['days'] = len(dts)
     ann_target = plan['target'] or 1
+    pot110 = P.plan_potential(plan, 1.1)
+    pot100 = P.plan_potential(plan, 1.0)
     return dict(o=o, plan=plan, waves=waves, months=months, earned=earned,
                 bottles=round(total_bottles, 1), ann_ach=total_bottles / ann_target,
                 days=sum(m['days'] for m in months.values()),
-                section=P.section_of(plan))
+                section=P.section_of(plan),
+                # деньги точки: максимум за программу и сколько ещё не добрано
+                pot90=P.plan_potential(plan, 0.9), pot100=pot100, pot110=pot110,
+                left=max(pot110 - earned, 0),
+                pot_ach=(earned / pot110 if pot110 else 0.0))
+
+
+def current_wave():
+    """Волна, которая идёт сейчас (до старта — 1, после финиша — 3)."""
+    m = datetime.now().strftime('%Y-%m')
+    if m <= P.MONTHS[0]:
+        return 1
+    if m >= P.MONTHS[-1]:
+        return 3
+    return P.MONTH_WAVE[m]
 
 def group_sections(summaries):
     by = defaultdict(list)
@@ -166,7 +183,8 @@ def register_routes(app):
         u = current_user()
         rows = [outlet_summary(o) for o in Outlet.query.filter_by(manager_id=u.id).all()]
         return render_template('manager.html', sections=group_sections(rows),
-                               waves=P.WAVE_PERIODS, all_rows=rows)
+                               waves=P.WAVE_PERIODS, all_rows=rows,
+                               cur_wave=current_wave())
 
     @app.route('/outlet/<int:oid>')
     @login_required()
@@ -357,6 +375,47 @@ def register_routes(app):
                 for o in Outlet.query.all()]
         return render_template('user_outlets.html', u=u,
                                sections=group_sections(rows))
+
+    # ----- инструкция (для всех) -----
+    @app.route('/help')
+    @login_required()
+    def help_page():
+        u = current_user()
+        # мои цифры — чтобы менеджер видел инструкцию «про себя»
+        my = None
+        if u.role == 'manager':
+            rows = [outlet_summary(o) for o in Outlet.query.filter_by(manager_id=u.id).all()]
+            my = dict(n=len(rows),
+                      pot110=sum(r['pot110'] for r in rows),
+                      earned=sum(r['earned'] for r in rows),
+                      chains=sum(1 for r in rows if r['plan'].get('is_chain')),
+                      rebased=sum(1 for r in rows if r['plan'].get('rebased')))
+        # пример расчёта — считаем теми же функциями, что и выплаты, чтобы не разошлось
+        eu = {'VS 0.7': 400, 'VSOP 0.7': 50}
+        ex = dict(target=430, vs=400, vsop=50,
+                  price_vs=P.hf(P.net_price('HY', 'VS 0.7', 'OFF')),
+                  price_vsop=P.hf(P.net_price('HY', 'VSOP 0.7', 'OFF')),
+                  bottles=round(P.eq_bottles('HY', eu), 1),
+                  turn=P.hf(P.turnover_kzt('HY', 'OFF', eu)))
+        ex['ach'] = ex['bottles'] / ex['target']
+        ex['rate'] = P.rate_for('HY', 1, 'p100')
+        ex['prize'] = P.hf(ex['rate'] * ex['turn'])
+        ex['team'] = P.hf(P.TEAM_RATE * ex['bottles'] * P.RSP['HY'] * P.FX)
+        ex['total'] = ex['prize'] + ex['team']
+        counts = dict(n=len(P.PLANS),
+                      hy=sum(1 for p in P.PLANS if p['brand'] == 'HY'),
+                      mc=sum(1 for p in P.PLANS if p['brand'] == 'MC'),
+                      chains=sum(1 for p in P.PLANS if p.get('is_chain')),
+                      rebased=sum(1 for p in P.PLANS if p.get('rebased')))
+        dc = sorted({p['name'].replace(' (chain)', '') for p in P.PLANS if p.get('dc')})
+        return render_template('help.html', my=my, ex=ex, counts=counts, dc=dc,
+                               meta=P.META, totals=P.program_totals(),
+                               wavep=P.WAVE_PERIODS, shares=P.WAVES,
+                               r1=P.RATE_W1, rs=P.RATE_STD, ku=P.KU_FLAT,
+                               rsp_kzt={b: P.hf(v * P.FX) for b, v in P.RSP.items()},
+                               pay={'w1': 'начало сентября 2026', 'w2': 'ноябрь 2026',
+                                    'w3': 'январь 2027'},
+                               cur_wave=current_wave())
 
     @app.route('/leaderboard')
     @login_required()

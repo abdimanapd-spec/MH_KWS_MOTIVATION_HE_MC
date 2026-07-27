@@ -1,38 +1,83 @@
 {% extends 'base.html' %}
 {% block body %}
-<h1>Мои точки</h1>
-<p class="sub">{{ user.name }} · вносите отгрузки по дням — выполнение волны и приз считаются автоматически.</p>
-
 {% set earned = all_rows|sum(attribute='earned') %}
+{% set potmax = all_rows|sum(attribute='pot110') %}
+{% set left = potmax - earned %}
+<h1>Мои точки</h1>
+<p class="sub">{{ user.name }} · внесено отгрузок: {{ all_rows|sum(attribute='days') }} ·
+сейчас идёт <b>волна {{ cur_wave }}</b> ({{ waves['w' + cur_wave|string] }}) — она подсвечена в таблице.</p>
+
 <div class="kpis">
   <div class="kpi"><div class="l">Мои точки</div><div class="v">{{ all_rows|length }}</div></div>
   <div class="kpi alt"><div class="l">Заработано (факт)</div><div class="v">{{ fmt(earned) }} ₸</div></div>
-  <div class="kpi"><div class="l">Отгрузок внесено</div><div class="v">{{ all_rows|sum(attribute='days') }}</div></div>
+  <div class="kpi gold"><div class="l">Можно заработать (макс)</div><div class="v">{{ fmt(potmax) }} ₸</div></div>
+  <div class="kpi"><div class="l">Осталось добрать</div><div class="v">{{ fmt(left) }} ₸</div>
+    <div class="kbar"><span style="width:{{ ((earned / potmax * 100) if potmax else 0)|round(0,'floor')|int }}%"></span></div>
+    <div class="kmini">взято {{ ((earned / potmax * 100) if potmax else 0)|round(0,'floor')|int }}% от максимума</div>
+  </div>
 </div>
 
 {% for sec, rows in sections %}
 <h2>{{ '🔗 СЕТИ · центральный план' if sec=='СЕТИ' else sec }}</h2>
 <div class="card" style="padding:12px">
-<table>
+<table class="money">
   <thead><tr>
-    <th class="l">Точка / сеть</th><th>Марка</th><th>План</th>
-    <th>Волна 1</th><th>Волна 2</th><th>Волна 3</th><th>Приз, ₸</th><th></th>
+    <th class="l">Точка / сеть</th><th>Марка</th><th>План,<br>бут.</th>
+    {% for w in [1,2,3] %}
+      <th class="{{ 'now' if w==cur_wave }}">Волна {{ w }}<br><span class="thsub">{{ waves['w' + w|string] }}</span></th>
+    {% endfor %}
+    <th>Заработано,&nbsp;₸</th><th>Можно<br>заработать,&nbsp;₸</th><th></th>
   </tr></thead>
   <tbody>
   {% for r in rows %}
     <tr>
-      <td class="l"><b>{{ r.o.name }}</b><br><span class="muted">{{ r.o.city }} · {{ r.o.channel }}</span></td>
+      <td class="l"><b>{{ r.o.name }}</b>{% if r.plan.rebased %} <span class="star" title="план поднят по собственному тренду точки">★</span>{% endif %}
+        <br><span class="muted">{{ r.o.city }} · {{ r.o.channel }}</span></td>
       <td class="center"><span class="tag {{ 'hy' if r.o.brand=='HY' else 'mc' }}">{{ r.o.brand }}</span></td>
       <td>{{ r.plan.target }}</td>
-      {% for w in [1,2,3] %}{% set c=r.waves[w] %}{% set pct=(c.ach*100)|round|int %}
-        <td><div class="bar {{ 'ok' if pct>=100 else 'mid' if pct>=90 else 'low' if pct>0 else '' }}"><span style="width:{{ [pct,110]|min }}%"></span><em>{{ pct }}%</em></div></td>
+      {% for w in [1,2,3] %}{% set c=r.waves[w] %}{% set pct=(c.ach*100)|round(0,'floor')|int %}
+        <td class="wcell {{ 'now' if w==cur_wave }}">
+          <div class="bar {{ 'ok' if pct>=100 else 'mid' if pct>=90 else 'low' if pct>0 else '' }}"><span style="width:{{ [pct,110]|min }}%"></span><em>{{ pct }}%</em></div>
+          {% if c.gap.next %}
+            <div class="gap">до {{ c.gap.next }}% — ещё {{ c.gap.pp }} п.п.<span>это {{ c.gap.bottles }} бут.</span>
+              {% if c.gap.money %}<b>+{{ fmt(c.gap.money) }} ₸</b>{% endif %}</div>
+          {% else %}
+            <div class="gap done">✓ максимум взят<b>{{ fmt(c.total) }} ₸</b></div>
+          {% endif %}
+        </td>
       {% endfor %}
-      <td><b>{{ fmt(r.earned) }}</b></td>
+      <td class="mny">{{ fmt(r.earned) }}
+        <span class="s">{{ (r.pot_ach*100)|round(0,'floor')|int }}% от максимума</span></td>
+      <td class="mny gold">{{ fmt(r.pot110) }}
+        <span class="s">осталось {{ fmt(r.left) }}</span></td>
       <td><a class="btn sm" href="{{ url_for('outlet', oid=r.o.id) }}">Внести отгрузку</a></td>
     </tr>
   {% endfor %}
   </tbody>
+  {% if rows|length > 1 %}<tfoot><tr>
+    <td class="l">Итого · {{ rows|length }}</td><td></td>
+    <td>{{ rows|sum(attribute='plan.target') }}</td>
+    {% for w in [1,2,3] %}
+      <td class="{{ 'now' if w==cur_wave }}">
+        <div class="gap">до ближайших порогов<b>+{{ fmt(rows|sum(attribute='waves.' + w|string + '.gap.money')) }} ₸</b></div>
+      </td>
+    {% endfor %}
+    <td class="mny">{{ fmt(rows|sum(attribute='earned')) }}</td>
+    <td class="mny gold">{{ fmt(rows|sum(attribute='pot110')) }}
+      <span class="s">осталось {{ fmt(rows|sum(attribute='left')) }}</span></td>
+    <td></td>
+  </tr></tfoot>{% endif %}
 </table>
 </div>
 {% endfor %}
+
+<div class="note">
+<p><b>Можно заработать</b> — приз + командный бонус по этой точке при выполнении 110 %. Это те же цифры, что в вашем письме и в Excel-файле программы.</p>
+<p><b>До 90 / 100 / 110 %</b> — ближайший порог по волне и что он даёт деньгами: ниже 90 % выплаты нет вообще, на 90 % включается пониженная ставка, на 100 % — базовая, на 110 % — максимальная. Сверх 110 % не начисляется.</p>
+{% if all_rows|selectattr('plan.rebased')|list %}
+<p><span class="star">★</span> — точкам, которые уже росли быстрее базы, план поднят по их собственному тренду, а потолок приза остался на базовом уровне. Поэтому у них шаг со 100 % на 110 % даёт мало или ничего — рабочая цель по таким точкам это <b>100 %</b>.</p>
+{% endif %}
+<p>Суммы считаются только по верифицированным отгрузкам дистрибьютора и обновляются сразу после того, как вы внесли день.</p>
+<p>Полные правила программы — шкала, волны, даты выплат, пример расчёта — на странице <a href="{{ url_for('help_page') }}"><b>📖 Инструкция</b></a> (она же в верхнем меню, доступна всегда).</p>
+</div>
 {% endblock %}

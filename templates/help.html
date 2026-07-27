@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% block title %}Инструкция · Мотивационная программа 2026{% endblock %}
+{% macro n(x) %}{% if x|round(0) == x %}{{ x|int }}{% else %}{{ x|string|replace('.',',') }}{% endif %}{% endmacro %}
+{% macro pct(x) %}{{ n((x*100)|round(1)) }}{% endmacro %}
+{% macro plural(k, one, few, many) %}{{ one if k % 10 == 1 and k % 100 != 11 else (few if 2 <= k % 10 <= 4 and not 12 <= k % 100 <= 14 else many) }}{% endmacro %}
+{% block body %}
+<h1>Инструкция по программе</h1>
+<p class="sub">Hennessy &amp; Moёt&nbsp;&amp;&nbsp;Chandon · июль–декабрь 2026 · {{ counts.n }} {{ plural(counts.n,'план','плана','планов') }} ({{ counts.hy }} Hennessy, {{ counts.mc }} Moёt).
+То же, что на листе «Инструкция» в Excel-файле программы — страница всегда под рукой, возвращайтесь сюда в любой момент.</p>
+
+{% if my %}
+<div class="hme">
+  <div><span class="l">Ваших точек</span><b>{{ my.n }}</b></div>
+  <div><span class="l">Заработано</span><b>{{ fmt(my.earned) }} ₸</b></div>
+  <div><span class="l">Можно заработать</span><b class="g">{{ fmt(my.pot110) }} ₸</b></div>
+  <div><span class="l">Сейчас идёт</span><b>волна {{ cur_wave }} · {{ wavep['w' + cur_wave|string] }}</b></div>
+  <a class="btn sm ghost" href="{{ url_for('dashboard') }}">Мои точки →</a>
+</div>
+{% endif %}
+
+<div class="toc">
+  <a href="#s1">1 · Суть программы</a>
+  <a href="#s2">2 · Три волны</a>
+  <a href="#s3">3 · Как считается приз</a>
+  <a href="#s4">4 · Что делать в трекере</a>
+  <a href="#s5">5 · Как читать «Мои точки»</a>
+  <a href="#s6">6 · Обозначения и правила</a>
+  <a href="#s7">7 · Короткие ответы</a>
+</div>
+
+<!-- 1 -->
+<div class="hsec" id="s1">
+  <h2><span class="num">1</span> Суть программы</h2>
+  <div class="hrow"><div class="k">Что это</div><div class="v">
+    Денежные призы торговым точкам и сетям за выполнение личного плана продаж Hennessy и Moёt&nbsp;&amp;&nbsp;Chandon
+    в июле–декабре 2026. Плюс <b>командный бонус KWS</b> — команде за те же результаты.
+    Общий максимум по программе: <b>{{ fmt(totals.max_total) }} ₸</b> ({{ fmt(totals.prize110) }} ₸ призы точкам
+    + {{ fmt(totals.team110) }} ₸ команде).</div></div>
+  <div class="hrow"><div class="k">Кто участвует</div><div class="v">
+    Всего {{ counts.n }} {{ plural(counts.n,'план','плана','планов') }} по точкам и сетям: {{ counts.hy }} по Hennessy, {{ counts.mc }} по Moёt.
+    Сети (Magnum, Metro, Норма, Toi Mart, Alma Wine, Skif, XO, Galmart) работают по <b>одному общему плану на сеть</b>
+    — без разбивки по магазинам. Казино в программе не участвуют.</div></div>
+  <div class="hrow"><div class="k">План</div><div class="v">
+    Личный план в бутылках: Hennessy — бутылки 0,7 л (все объёмы пересчитываются в эквивалент 0,7),
+    Moёt — бутылки 0,75 л. Например 2 бутылки VS&nbsp;0,35 = 1 бутылка эквивалента.
+    План каждой вашей точки виден в «Мои точки» и в вашем письме.</div></div>
+</div>
+
+<!-- 2 -->
+<div class="hsec" id="s2">
+  <h2><span class="num">2</span> Три волны</h2>
+  <p class="hlead">Программа разбита на три волны по два месяца. Каждая волна считается и выплачивается отдельно:
+    провал в одной волне не отменяет приз в другой, и наоборот.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr>
+      <th class="l">Волна</th><th class="l">Период</th><th>Доля плана<br>Hennessy</th><th>Доля плана<br>Moёt</th>
+      <th>Ставки приза<br>90 % / 100 % / 110 %</th><th class="l">Выплата</th>
+    </tr></thead>
+    <tbody>
+      {% for w in [1,2,3] %}
+      <tr class="{{ 'now' if w==cur_wave }}">
+        <td class="l"><b>Волна {{ w }}</b>{% if w==cur_wave %} <span class="chip open">идёт сейчас</span>{% endif %}</td>
+        <td class="l">{{ wavep['w' + w|string] }} 2026</td>
+        <td>{{ pct(shares.HY[w-1]) }} %</td>
+        <td>{{ pct(shares.MC[w-1]) }} %</td>
+        <td>{% if w==1 %}<b class="hot">{{ (r1.p90*100)|round|int }} % / {{ (r1.p100*100)|round|int }} % / {{ (r1.p110*100)|round|int }} %</b>
+            {% else %}{{ (rs.p90*100)|round|int }} % / {{ (rs.p100*100)|round|int }} % / {{ (rs.p110*100)|round|int }} %{% endif %}</td>
+        <td class="l">{{ pay['w' + w|string] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="hrow" style="margin-top:6px"><div class="k">Волна 1 — самая выгодная</div><div class="v">
+    В первой волне ставки <b>повышенные</b> ({{ (r1.p90*100)|round|int }} / {{ (r1.p100*100)|round|int }} / {{ (r1.p110*100)|round|int }} % вместо
+    {{ (rs.p90*100)|round|int }} / {{ (rs.p100*100)|round|int }} / {{ (rs.p110*100)|round|int }} %), а деньги приходят уже в начале сентября — это шанс быстро показать точкам живые деньги.</div></div>
+  <div class="hrow"><div class="k">Планы волн — по сезонности</div><div class="v">
+    Планы разбиты <b>не поровну</b>, а по сезонности рынка: на волну 1 приходится всего {{ pct(shares.HY[0]) }} % годового плана
+    по Hennessy и {{ pct(shares.MC[0]) }} % по Moёt. Поэтому план волны 1 реально достижим: продали в июле–августе
+    на уровне прошлого года +10 % — это уже ~110 % плана волны и максимальная ставка.</div></div>
+</div>
+
+<!-- 3 -->
+<div class="hsec" id="s3">
+  <h2><span class="num">3</span> Как считается приз точки</h2>
+  <div class="hrow"><div class="k">Шкала</div><div class="v">
+    Смотрим <b>выполнение плана волны</b> в бутылках:
+    <div class="scale">
+      <div class="sc bad"><b>ниже 90 %</b><span>приза нет</span></div>
+      <div class="sc"><b>90–99 %</b><span>ставка {{ (rs.p90*100)|round|int }} % · в волне 1 — {{ (r1.p90*100)|round|int }} %</span></div>
+      <div class="sc mid"><b>100–109 %</b><span>ставка {{ (rs.p100*100)|round|int }} % · в волне 1 — {{ (r1.p100*100)|round|int }} %</span></div>
+      <div class="sc top"><b>110 % и выше</b><span>ставка {{ (rs.p110*100)|round|int }} % · в волне 1 — {{ (r1.p110*100)|round|int }} %</span></div>
+    </div>
+    Объём сверх 110 % не оплачивается — это потолок.</div></div>
+  <div class="hrow"><div class="k">База начисления</div><div class="v">
+    Ставка умножается на <b>фактический оборот точки по входным ценам</b> (прайс минус КУ {{ (ku*100)|round|int }} %):
+    сколько бутылок каждого SKU продано × цена этого SKU. Точка, продающая XO и VSOP, получает больше за ту же бутылку,
+    чем по VS — считаем честно, по реальному миксу.</div></div>
+  <div class="hrow"><div class="k">Пример</div><div class="v">
+    <div class="calc">
+      <div class="r"><span>План волны</span><b>{{ ex.target }} бут.</b></div>
+      <div class="r"><span>Продано: {{ ex.vs }} × VS 0,7 + {{ ex.vsop }} × VSOP 0,7</span><b>{{ n(ex.bottles) }} бут.</b></div>
+      <div class="r"><span>Выполнение {{ n(ex.bottles) }} / {{ ex.target }}</span><b>{{ (ex.ach*100)|round(0,'floor')|int }} % → ставка волны 1 = {{ (ex.rate*100)|round|int }} %</b></div>
+      <div class="r"><span>Оборот: {{ ex.vs }} × {{ fmt(ex.price_vs) }} ₸ + {{ ex.vsop }} × {{ fmt(ex.price_vsop) }} ₸</span><b>{{ fmt(ex.turn) }} ₸</b></div>
+      <div class="r"><span>Приз точке: {{ (ex.rate*100)|round|int }} % × {{ fmt(ex.turn) }} ₸</span><b>{{ fmt(ex.prize) }} ₸</b></div>
+      <div class="r"><span>Командный бонус KWS: 1,5 % × {{ n(ex.bottles) }} бут × {{ fmt(rsp_kzt.HY) }} ₸</span><b>{{ fmt(ex.team) }} ₸</b></div>
+      <div class="r tot"><span>Итого за волну</span><b>{{ fmt(ex.total) }} ₸</b></div>
+    </div>
+    <div class="calcnote">Пример условный. По вашим точкам точные цифры всегда в «Мои точки» — там уже учтён
+      индивидуальный потолок каждого плана (см. п. 6).</div></div></div>
+  <div class="hrow"><div class="k">Командный бонус KWS</div><div class="v">
+    Дополнительно <b>1,5 % от оборота по RSP</b> (Hennessy {{ fmt(rsp_kzt.HY) }} ₸/бут, Moёt {{ fmt(rsp_kzt.MC) }} ₸/бут)
+    за ту же точку — начисляется при выполнении от 90 %. Это деньги команды, а не точки, и они уже включены
+    в колонку «Можно заработать» в «Мои точки».</div></div>
+</div>
+
+<!-- 4 -->
+<div class="hsec" id="s4">
+  <h2><span class="num">4</span> Что делать в трекере</h2>
+  <div class="hrow"><div class="k">До конца июля</div><div class="v">
+    Довести план до каждой ТТ и сети: план волны, шкала ставок, дата выплаты. Всё это есть в вашем письме
+    и в презентации для точек. Договорённость по сетям — зафиксировать письмом.</div></div>
+  <div class="hrow"><div class="k">Каждую неделю</div><div class="v">
+    Вносить отгрузки: «Мои точки» → <b>Внести отгрузку</b> → дата и штуки по каждому SKU за этот день.
+    Вносите по дням — так видно темп. Недельный ориентир: <b>план волны ÷ 9 недель</b>.
+    Пока месяц не закрыт, любую дату можно поправить или удалить в журнале отгрузок.</div></div>
+  <div class="hrow"><div class="k">Конец волны</div><div class="v">
+    Факт сверяется с деплешнами дистрибьютора, после этого админ закрывает месяц — правки больше не принимаются,
+    сумма фиксируется. Закрытые месяцы помечены в журнале.</div></div>
+  <div class="hrow"><div class="k">Выплата</div><div class="v">
+    Волна 1 — {{ pay.w1 }}, волна 2 — {{ pay.w2 }}, волна 3 — {{ pay.w3 }}.
+    Только по верифицированным продажам.</div></div>
+</div>
+
+<!-- 5 -->
+<div class="hsec" id="s5">
+  <h2><span class="num">5</span> Как читать «Мои точки»</h2>
+  <div class="hrow"><div class="k">Заработано (факт)</div><div class="v">
+    Сколько уже начислено по внесённым отгрузкам: приз точке + командный бонус. Обновляется сразу после того,
+    как вы внесли день.</div></div>
+  <div class="hrow"><div class="k">Можно заработать (макс)</div><div class="v">
+    Потолок по точке за всю программу — при выполнении 110 % во всех трёх волнах. Это те же цифры,
+    что в вашем письме и в Excel-файле.</div></div>
+  <div class="hrow"><div class="k">Осталось добрать</div><div class="v">
+    Разница между максимумом и фактом — сколько денег по вашим точкам ещё лежит на столе.</div></div>
+  <div class="hrow"><div class="k">Колонки «Волна 1 / 2 / 3»</div><div class="v">
+    Полоса — % выполнения волны. Под ней подсказка: <b>до какого порога</b> не хватает, сколько это
+    <b>процентных пунктов и бутылок</b> и <b>сколько денег</b> добавит этот шаг. Текущая волна подсвечена жёлтым.</div></div>
+  <div class="hrow"><div class="k">Строка «Итого»</div><div class="v">
+    По каждой секции — сумма планов, заработанного и того, что даст выход на ближайшие пороги по всем точкам сразу.</div></div>
+  <div class="hrow"><div class="k">Страница точки</div><div class="v">
+    Кнопка «Внести отгрузку» открывает карточку точки: выполнение по волнам и месяцам, форма ввода по SKU
+    и журнал всех отгрузок с возможностью правки.</div></div>
+</div>
+
+<!-- 6 -->
+<div class="hsec" id="s6">
+  <h2><span class="num">6</span> Обозначения и правила</h2>
+  <div class="hrow"><div class="k"><span class="star">★</span> у названия точки</div><div class="v">
+    Точка уже растёт быстрее рынка — план ей поставлен по её собственному тренду (+15 %), а потолок приза
+    остался на базовом уровне. Поэтому шаг со 100 % на 110 % у таких точек даёт мало или ничего:
+    <b>рабочая цель по ним — 100 %</b>. В Excel-файле этот же знак обозначен как ‡.
+    {% if my %}Ваших точек с&nbsp;★: <b>{{ my.rebased }}</b>.{% else %}Всего по программе точек с&nbsp;★: {{ counts.rebased }}.{% endif %}</div></div>
+  <div class="hrow"><div class="k">Сети</div><div class="v">
+    Один план и один приз на всю сеть — распределение внутри сети решает сама сеть.
+    {% if dc %}У {{ dc|join(' и ') }} план стоит на уровне распределительного центра (РЦ).{% endif %}
+    {% if my and my.chains %}Ваших сетевых планов: <b>{{ my.chains }}</b>.{% endif %}</div></div>
+  <div class="hrow"><div class="k">Потолок 110 %</div><div class="v">
+    Объём сверх 110 % плана волны не оплачивается: у каждого плана свой потолок — и по призу точки,
+    и по командному бонусу. Продать больше можно и нужно, но выплата выше потолка не растёт.
+    В «Мои точки» потолок уже зашит в колонку «Можно заработать».</div></div>
+  <div class="hrow"><div class="k">Бюджет</div><div class="v">
+    Если суммарно заработанные призы по марке превысят бюджет программы, все выплаты этой марки
+    пропорционально уменьшаются.</div></div>
+  <div class="hrow"><div class="k">Верификация</div><div class="v">
+    Оплата только по верифицированным продажам — деплешнам дистрибьютора. Цифры в трекере — рабочая оценка,
+    финальная сумма фиксируется при закрытии месяца.</div></div>
+</div>
+
+<!-- 7 -->
+<div class="hsec" id="s7">
+  <h2><span class="num">7</span> Короткие ответы</h2>
+  <div class="hrow"><div class="k">Продал больше 110 %?</div><div class="v">
+    Приз считается по 110 % — это потолок. Но объём идёт в общий результат и в рейтинг команд.</div></div>
+  <div class="hrow"><div class="k">Не дотянул до 90 %?</div><div class="v">
+    За эту волну выплаты нет. Волны независимы: следующая считается с нуля, ничего не «сгорает» дальше.</div></div>
+  <div class="hrow"><div class="k">Ошибся в цифре?</div><div class="v">
+    Пока месяц не закрыт — «изменить» или «×» в журнале отгрузок на странице точки. После закрытия — только через Дидара.</div></div>
+  <div class="hrow"><div class="k">Почему 100 % и 110 % дают почти одно и то же?</div><div class="v">
+    Это точка со знаком <span class="star">★</span> — у неё потолок приза зафиксирован на базовом уровне. Цельтесь в 100 %.</div></div>
+  <div class="hrow"><div class="k">Точка продаёт дорогие SKU — это учитывается?</div><div class="v">
+    Да. Оборот считается по фактическому миксу, поэтому XO и VSOP приносят больше, чем VS, при том же количестве бутылок.</div></div>
+  <div class="hrow"><div class="k">Не сходятся цифры?</div><div class="v">
+    Напишите Дидару — сверим с Excel-файлом и деплешнами.</div></div>
+</div>
+
+<p class="muted center" style="margin-top:18px">
+  {% if my %}<a class="btn sm" href="{{ url_for('dashboard') }}">← Вернуться к «Мои точки»</a>{% else %}<a class="btn sm" href="{{ url_for('admin') }}">← Вернуться на дашборд</a>{% endif %}
+</p>
+{% endblock %}

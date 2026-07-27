@@ -59,4 +59,79 @@ input.num:focus{background:#fff;border-color:var(--royal);outline:none}
 .loginbox{max-width:380px;margin:60px auto}
 .rowflex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .medal{font-size:15px;width:26px;display:inline-block;text-align:center}
-@media(max-width:640px){th,td{padding:6px 6px;font-size:12px}header.top .brand{font-size:14px}}
+/* --- деньги по точкам и «сколько не хватает» (дашборд менеджера) --- */
+.kpi.gold{background:linear-gradient(160deg,#B8912F,#8a6c1f)}
+.kpi.gold .l{color:#f4e6c2}
+.kbar{height:6px;border-radius:4px;background:rgba(255,255,255,.22);margin-top:9px;overflow:hidden}
+.kbar>span{display:block;height:100%;background:#7ED9A0;border-radius:4px}
+.kmini{font-size:11px;color:#bcd3f0;margin-top:5px}
+.kpi.gold .kmini{color:#f4e6c2}
+.kgap{font-size:11.5px;color:#fff;background:rgba(255,255,255,.14);border-radius:7px;padding:5px 8px;margin-top:8px;line-height:1.4}
+.kgap b{color:#FFD97A}
+.kgap.ok{color:#9DE8BC}
+table.money{font-size:13px}
+table.money th{vertical-align:bottom}
+table.money .thsub{display:block;font-weight:normal;font-size:10px;letter-spacing:0;opacity:.85;text-transform:none}
+table.money th.now{background:var(--gold)}
+.wcell{min-width:132px}
+.wcell.now,table.money tfoot td.now{background:#FFF8E8 !important;box-shadow:inset 3px 0 0 var(--gold)}
+.gap{font-size:11px;color:var(--grey);line-height:1.45;margin-top:5px;white-space:nowrap}
+.gap span{display:block}
+.gap b{display:block;color:#8a6c1f;font-size:12.5px;margin-top:2px}
+.gap.done{color:var(--green)}
+.gap.done b{color:var(--green)}
+.star{color:var(--gold);font-size:12px}
+.note{color:var(--grey);font-size:12px;line-height:1.55;margin:10px 2px 0}
+.note p{margin:5px 0}
+.note b{color:#42536e}
+.mny{font-weight:bold;white-space:nowrap}
+.mny.gold{color:#8a6c1f}
+.mny .s{display:block;font-size:11px;color:var(--grey);font-weight:normal;margin-top:2px}
+table.money tfoot td{background:var(--ice);border-top:2px solid var(--steel);border-bottom:none;font-weight:bold}
+/* --- страница «Инструкция» --- */
+header.top nav a.nav-help{color:#FFE49A}
+header.top nav a.nav-help:hover{color:#fff}
+.hme{display:flex;flex-wrap:wrap;align-items:center;gap:22px;background:linear-gradient(160deg,var(--cobalt),var(--navy));
+  color:#fff;border-radius:12px;padding:14px 18px;margin:16px 0 6px}
+.hme .l{display:block;font-size:11px;color:#bcd3f0;text-transform:uppercase;letter-spacing:.4px}
+.hme b{font-size:17px}
+.hme b.g{color:#FFD97A}
+.hme .btn{margin-left:auto}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 2px}
+.toc a{background:#fff;border:1px solid var(--powder);border-radius:20px;padding:6px 13px;font-size:12.5px;color:var(--cobalt)}
+.toc a:hover{background:var(--royal);color:#fff;border-color:var(--royal);text-decoration:none}
+.hsec{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(13,31,60,.08);padding:4px 20px 16px;margin:16px 0;scroll-margin-top:14px}
+.hsec h2{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--ice);padding-bottom:10px;margin-bottom:4px}
+.hsec h2 .num{background:var(--royal);color:#fff;width:26px;height:26px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 26px}
+.hlead{font-size:13.5px;color:var(--grey);line-height:1.6;margin:10px 0 4px}
+.hrow{display:grid;grid-template-columns:190px 1fr;gap:16px;padding:11px 0;border-bottom:1px dashed #e9eef5;
+  font-size:13.5px;line-height:1.65}
+.hrow:last-child{border-bottom:none}
+.hrow .k{color:var(--cobalt);font-weight:bold;font-size:13px}
+.hrow .v b{color:#42536e}
+.scale{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0 4px}
+.sc{background:var(--frost);border:1px solid var(--ice);border-radius:9px;padding:8px 11px}
+.sc b{display:block;font-size:13px;color:var(--cobalt)}
+.sc span{display:block;font-size:11.5px;color:var(--grey);margin-top:2px}
+.sc.bad{background:#fdeeec;border-color:#f3d9d6}.sc.bad b{color:var(--red)}
+.sc.mid{background:#eaf2fb;border-color:var(--powder)}
+.sc.top{background:#fff6e2;border-color:#eed9a6}.sc.top b{color:#8a6c1f}
+.calc{background:var(--frost);border-left:3px solid var(--gold);border-radius:8px;padding:6px 14px;margin:8px 0 2px;font-size:13px}
+.calc .r{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:5px 0;border-bottom:1px dotted var(--powder)}
+.calc .r:last-child{border-bottom:none}
+.calc .r span{color:var(--grey)}
+.calc .r b{white-space:nowrap;color:#42536e}
+.calc .r.tot{border-top:1px solid var(--steel);border-bottom:none;margin-top:3px;padding-top:7px}
+.calc .r.tot span,.calc .r.tot b{color:#8a6c1f;font-weight:bold;font-size:14px}
+.calcnote{font-size:11.5px;color:var(--grey);line-height:1.5;margin-top:7px}
+.hsec table tr.now td{background:#FFF8E8}
+.hot{color:#8a6c1f}
+.scroll{overflow-x:auto}
+@media(max-width:640px){th,td{padding:6px 6px;font-size:12px}header.top .brand{font-size:14px}
+  .card{overflow-x:auto}table.money{min-width:900px}
+  header.top .wrap{flex-wrap:wrap}header.top nav a{margin:0 14px 0 0}
+  .hrow{grid-template-columns:1fr;gap:3px;padding:9px 0}
+  .hme{gap:14px}.hme .btn{margin-left:0}
+  .hsec{padding:4px 14px 14px}.hsec table{min-width:560px}
+  .calc .r{flex-direction:column;gap:0;align-items:flex-start}}

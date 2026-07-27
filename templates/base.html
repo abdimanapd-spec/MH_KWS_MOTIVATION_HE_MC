@@ -20,6 +20,7 @@
         <a href="{{ url_for('dashboard') }}">Мои точки</a>
         <a href="{{ url_for('leaderboard') }}">Рейтинг</a>
       {% endif %}
+      <a href="{{ url_for('help_page') }}" class="nav-help">📖 Инструкция</a>
       <a href="{{ url_for('logout') }}">Выйти ({{ user.name }})</a>
     </nav>
   </div>

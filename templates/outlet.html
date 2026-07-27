@@ -7,14 +7,28 @@
 <p class="sub">{{ o.city }} · {{ o.channel }}-трейд · команда «{{ o.team }}» · план июль–декабрь: <b>{{ plan.target }}</b> бут.
 {% if plan.is_chain %}· <span class="tag">сеть · один план</span>{% endif %}</p>
 
+<div class="kpis">
+  <div class="kpi alt"><div class="l">Заработано (факт)</div><div class="v">{{ fmt(summ.earned) }} ₸</div>
+    <div class="kmini">{{ (summ.pot_ach*100)|round(0,'floor')|int }}% от максимума</div></div>
+  <div class="kpi gold"><div class="l">Можно заработать (макс)</div><div class="v">{{ fmt(summ.pot110) }} ₸</div>
+    <div class="kmini">при 100 % — {{ fmt(summ.pot100) }} ₸ · при 90 % — {{ fmt(summ.pot90) }} ₸</div></div>
+  <div class="kpi"><div class="l">Осталось добрать</div><div class="v">{{ fmt(summ.left) }} ₸</div>
+    <div class="kbar"><span style="width:{{ (summ.pot_ach*100)|round(0,'floor')|int }}%"></span></div></div>
+</div>
+
 <h2>Выполнение по волнам</h2>
 <div class="kpis">
   {% for w in [1,2,3] %}
-    {% set c = summ.waves[w] %}{% set pct=(c.ach*100)|round|int %}
+    {% set c = summ.waves[w] %}{% set pct=(c.ach*100)|round(0,'floor')|int %}
     <div class="kpi {{ 'alt' if w==2 }}">
       <div class="l">Волна {{ w }} · {{ wavep['w'+w|string] }}</div>
       <div class="v">{{ pct }}%</div>
-      <div class="muted" style="color:#bcd3f0">план {{ c.target }} · факт {{ c.bottles }} бут · приз {{ fmt(c.total) }} ₸</div>
+      <div class="kmini">план {{ c.target }} · факт {{ c.bottles }} бут · приз {{ fmt(c.total) }} ₸</div>
+      {% if c.gap.next %}
+        <div class="kgap">до {{ c.gap.next }}%: ещё {{ c.gap.pp }} п.п. · {{ c.gap.bottles }} бут. → <b>+{{ fmt(c.gap.money) }} ₸</b></div>
+      {% else %}
+        <div class="kgap ok">✓ максимум по волне взят</div>
+      {% endif %}
     </div>
   {% endfor %}
 </div>

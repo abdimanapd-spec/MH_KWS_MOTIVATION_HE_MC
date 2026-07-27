@@ -97,6 +97,54 @@ def compute_wave(plan, wave, units_by_sku):
 def month_wave(month):
     return MONTH_WAVE[month]
 
+# ---------- потенциал: сколько точка может дать менеджеру ----------
+def price_per_bottle(plan):
+    """Нетто-выручка на 1 эквивалентную бутылку. Выводится из самой модели:
+    prize110 = 1,1 × target × цена × Σ(доля волны × ставка 110% этой волны)."""
+    b = plan['brand']
+    s = sum(WAVES[b][i] * rate_for(b, i + 1, 'p110') for i in range(3))
+    denom = 1.1 * plan['target'] * s
+    return plan['prize110_kzt'] / denom if denom else 0.0
+
+TIERS = (0.9, 1.0, 1.1)
+
+def wave_potential(plan, wave, level):
+    """Выплата за волну при выполнении level (0.9 / 1.0 / 1.1) — по правилам compute_wave,
+    включая потолки. Используется для подсказки «сколько ещё не хватает»."""
+    b = plan['brand']
+    tgt = wave_target(plan, wave)
+    bottles = tgt * level
+    turn = bottles * price_per_bottle(plan)
+    tier = 'p110' if level >= 1.1 else 'p100' if level >= 1.0 else 'p90'
+    prize = hf(rate_for(b, wave, tier) * turn)
+    team = hf(TEAM_RATE * bottles * RSP[b] * FX)
+    share = WAVES[b][wave - 1]
+    prize = min(prize, hf(plan['prize110_kzt'] * share))
+    team = min(team, hf(plan['team110_kzt'] * share))
+    return dict(prize=prize, team=team, total=prize + team)
+
+def plan_potential(plan, level):
+    """Максимум по точке за всю программу при уровне level: приз + командный бонус.
+    Цифры совпадают с Excel и письмами менеджерам."""
+    key = {0.9: 'prize90_kzt', 1.0: 'prize100_kzt', 1.1: 'prize110_kzt'}[level]
+    return plan[key] + hf(plan['team110_kzt'] * level / 1.1)
+
+def wave_gap(plan, wave, c):
+    """До какого порога и сколько не хватает: бутылки, п.п. и деньги сверху."""
+    tgt = wave_target(plan, wave)
+    nxt = None
+    for lvl in TIERS:
+        if c['ach'] < lvl - 1e-9:
+            nxt = lvl
+            break
+    g = dict(next=(int(round(nxt * 100)) if nxt else None), bottles=0, pp=0, money=0,
+             wave_max=wave_potential(plan, wave, 1.1)['total'])
+    if nxt:
+        g['bottles'] = round(max(tgt * nxt - c['bottles'], 0), 1)
+        g['pp'] = max(int(round((nxt - c['ach']) * 100)), 1)
+        g['money'] = max(wave_potential(plan, wave, nxt)['total'] - c['total'], 0)
+    return g
+
 # группировка как в Excel: блок СЕТИ, затем город × канал
 SECTION_ORDER = ['СЕТИ', 'Алматы OFF', 'Алматы ON', 'Астана OFF', 'Астана ON', 'Регионы']
 
