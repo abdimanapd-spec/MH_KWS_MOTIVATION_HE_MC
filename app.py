@@ -214,7 +214,9 @@ def register_routes(app):
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         if request.method == 'POST':
-            u = User.query.filter_by(username=request.form['username'].strip()).first()
+            # логин без учёта регистра: при создании он сохраняется строчными,
+            # а телефоны любят автоматически ставить заглавную букву
+            u = User.query.filter_by(username=request.form['username'].strip().lower()).first()
             if u and u.check_password(request.form['password']):
                 session['uid'] = u.id
                 return redirect(url_for('index'))
