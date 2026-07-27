@@ -63,4 +63,36 @@
 </table>
 </div>
 <p class="muted">Отгрузки, внесённые удалённым менеджером, сохраняются — удаляется только доступ.</p>
+
+<h2>Резервная копия</h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">
+    В копию попадает всё, что нельзя пересоздать автоматически: аккаунты и пароли,
+    какая точка за кем закреплена, все отгрузки и закрытые месяцы.
+    Скачивайте файл после каждого крупного изменения и храните у себя —
+    это независимая страховка от любых проблем на стороне хостинга.
+  </p>
+  <div class="rowflex" style="gap:14px;align-items:center;flex-wrap:wrap">
+    <a class="btn sm" href="{{ url_for('backup') }}">↓ Скачать копию</a>
+    <form method="post" action="{{ url_for('restore') }}" enctype="multipart/form-data"
+          class="rowflex" style="gap:8px;align-items:center;margin:0">
+      <input type="file" name="file" accept=".json,application/json" required>
+      <button class="btn sm ghost">↑ Восстановить из копии</button>
+    </form>
+  </div>
+  <p class="muted" style="margin-bottom:0">
+    Восстановление только добавляет недостающее — существующие аккаунты и отгрузки не трогает и ничего не удаляет.
+  </p>
+</div>
+
+<div class="card" style="border-color:{{ '#3a7d5a' if config.DB_PERSISTENT else '#b23b3b' }}">
+  <b>Хранилище данных: {{ config.DB_LABEL }}</b>
+  <p class="muted" style="margin-bottom:0">
+  {% if config.DB_PERSISTENT %}
+    Данные лежат в отдельной базе и переживают любое обновление сайта.
+  {% else %}
+    ⚠️ Временное хранилище: данные пропадут при следующем обновлении сайта. Так и должно быть только на локальном компьютере.
+  {% endif %}
+  </p>
+</div>
 {% endblock %}

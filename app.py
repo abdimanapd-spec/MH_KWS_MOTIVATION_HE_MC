@@ -6,21 +6,71 @@ import os, json, functools, secrets
 from datetime import datetime
 from collections import defaultdict
 from flask import (Flask, render_template, request, redirect, url_for, session,
-                   flash, abort, jsonify)
-from models import db, User, Outlet, Entry, MonthClose
+                   flash, abort, jsonify, Response)
+from models import db, User, Outlet, Entry, MonthClose, Setting
 import program as P
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+# ---------- база ----------
+def db_uri():
+    """Куда писать данные.
+
+    На Railway диск контейнера обнуляется при КАЖДОМ деплое, поэтому SQLite там
+    равносилен потере всех аккаунтов и отгрузок. Строку подключения к Postgres
+    Railway отдаёт в DATABASE_URL (приватная сеть, бесплатно) либо в
+    DATABASE_PUBLIC_URL (публичный прокси). Берём первую доступную.
+    Если на Railway нет ни одной — падаем с понятной ошибкой, а НЕ уходим
+    молча в SQLite: лучше заметная авария, чем тихо стёртые данные.
+    """
+    uri = (os.environ.get('DATABASE_URL') or os.environ.get('DATABASE_PUBLIC_URL') or '').strip()
+    if uri.startswith('postgres://'):
+        uri = uri.replace('postgres://', 'postgresql://', 1)
+    if uri:
+        return uri
+    on_railway = bool(os.environ.get('RAILWAY_ENVIRONMENT_ID') or os.environ.get('RAILWAY_SERVICE_ID'))
+    if on_railway and not os.environ.get('ALLOW_EPHEMERAL_DB'):
+        raise RuntimeError(
+            'Нет подключения к Postgres: не задана ни DATABASE_URL, ни DATABASE_PUBLIC_URL. '
+            'Приложение остановлено, чтобы не писать данные на временный диск Railway — '
+            'он обнуляется при каждом деплое. Откройте сервис в Railway → Variables → '
+            'New Variable → DATABASE_URL со значением ${{Postgres.DATABASE_URL}} и передеплойте. '
+            '(Осознанно запустить без базы: переменная ALLOW_EPHEMERAL_DB=1.)')
+    return 'sqlite:///' + os.path.join(HERE, 'tracker.db')
+
+def db_label(uri):
+    if uri.startswith('postgresql'):
+        kind = 'Postgres'
+        if not os.environ.get('DATABASE_URL') and os.environ.get('DATABASE_PUBLIC_URL'):
+            kind += ' (публичный адрес)'
+        return kind, True
+    return 'SQLite (временный диск)', False
+
+def secret_key():
+    """Постоянный ключ сессий. Из переменной окружения, иначе — из базы.
+    Раньше ключ генерировался заново при каждом старте, из-за чего всех
+    выкидывало из аккаунтов после любого деплоя."""
+    env = (os.environ.get('SECRET_KEY') or '').strip()
+    if env:
+        return env
+    s = db.session.get(Setting, 'secret_key')
+    if not s:
+        s = Setting(key='secret_key', value=secrets.token_hex(32))
+        db.session.add(s)
+        db.session.commit()
+    return s.value
 
 def create_app():
     app = Flask(__name__)
-    app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
-    uri = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(os.path.dirname(__file__), 'tracker.db'))
-    if uri.startswith('postgres://'):
-        uri = uri.replace('postgres://', 'postgresql://', 1)
+    uri = db_uri()
     app.config['SQLALCHEMY_DATABASE_URI'] = uri
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 280}
+    app.config['DB_LABEL'], app.config['DB_PERSISTENT'] = db_label(uri)
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        app.secret_key = secret_key()
         seed()
     register_routes(app)
     return app
@@ -54,7 +104,7 @@ def seed():
                               manager_id=m.id if m else None))
     db.session.commit()
     try:
-        with open(os.path.join(os.path.dirname(__file__), 'SEED_CREDENTIALS.json'), 'w', encoding='utf-8') as f:
+        with open(os.path.join(HERE, 'SEED_CREDENTIALS.json'), 'w', encoding='utf-8') as f:
             json.dump(creds, f, ensure_ascii=False, indent=1)
     except Exception:
         pass
@@ -376,6 +426,81 @@ def register_routes(app):
         return render_template('user_outlets.html', u=u,
                                sections=group_sections(rows))
 
+    # ----- резервная копия (только админ) -----
+    @app.route('/admin/backup.json')
+    @login_required('admin')
+    def backup():
+        """Выгрузка всего, что нельзя пересоздать автоматически: аккаунты,
+        привязка точек к менеджерам, отгрузки, закрытые месяцы."""
+        uname = {u.id: u.username for u in User.query.all()}
+        data = {
+            'version': 1,
+            'saved_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),
+            'users': [dict(username=u.username, name=u.name, role=u.role,
+                           team=u.team, pw_hash=u.pw_hash)
+                      for u in User.query.order_by(User.id).all()],
+            'outlets': [dict(id=o.id, manager=uname.get(o.manager_id))
+                        for o in Outlet.query.order_by(Outlet.id).all()],
+            'entries': [dict(outlet=e.outlet_id, date=e.date, sku=e.sku, units=e.units)
+                        for e in Entry.query.order_by(Entry.id).all()],
+            'closed': sorted(m.month for m in MonthClose.query.all()),
+        }
+        fn = 'mh-tracker-' + datetime.utcnow().strftime('%Y-%m-%d-%H%M') + '.json'
+        return Response(json.dumps(data, ensure_ascii=False, indent=1),
+                        mimetype='application/json',
+                        headers={'Content-Disposition': 'attachment; filename=' + fn})
+
+    @app.route('/admin/restore', methods=['POST'])
+    @login_required('admin')
+    def restore():
+        """Восстановление из файла копии. Только добавляет — ничего не удаляет
+        и не перезаписывает существующее."""
+        f = request.files.get('file')
+        if not f or not f.filename:
+            flash('Файл не выбран'); return redirect(url_for('users'))
+        try:
+            data = json.loads(f.read().decode('utf-8'))
+        except Exception:
+            flash('Не удалось прочитать файл — нужен .json из кнопки «Скачать копию»')
+            return redirect(url_for('users'))
+        me = current_user().id
+        by_name = {u.username: u for u in User.query.all()}
+        new_u = 0
+        for row in data.get('users', []):
+            un = (row.get('username') or '').strip().lower()
+            if not un or un in by_name:
+                continue
+            u = User(username=un, name=row.get('name') or un,
+                     role=row.get('role') or 'manager', team=row.get('team'))
+            u.pw_hash = row.get('pw_hash') or None
+            if not u.pw_hash:
+                u.set_password(un + '-26')
+            db.session.add(u); by_name[un] = u; new_u += 1
+        db.session.flush()
+        linked = 0
+        for row in data.get('outlets', []):
+            oid = row.get('id')
+            o = db.session.get(Outlet, oid) if oid else None
+            m = by_name.get(row.get('manager') or '')
+            if o and m and o.manager_id != m.id:
+                o.manager_id = m.id; linked += 1
+        seen = {(e.outlet_id, e.date, e.sku) for e in Entry.query.all()}
+        new_e = 0
+        for row in data.get('entries', []):
+            k = (row.get('outlet'), row.get('date'), row.get('sku'))
+            if not all(k) or k in seen:
+                continue
+            db.session.add(Entry(outlet_id=k[0], date=k[1], sku=k[2],
+                                 units=float(row.get('units') or 0), updated_by=me))
+            seen.add(k); new_e += 1
+        for m in data.get('closed', []):
+            if m in P.MONTHS and not db.session.get(MonthClose, m):
+                db.session.add(MonthClose(month=m, closed_by=me))
+        db.session.commit()
+        flash(f'Из копии восстановлено: аккаунтов +{new_u}, привязок точек {linked}, '
+              f'отгрузок +{new_e}. Ничего не удалено.')
+        return redirect(url_for('users'))
+
     # ----- инструкция (для всех) -----
     @app.route('/help')
     @login_required()
@@ -427,7 +552,11 @@ def register_routes(app):
 
     @app.route('/healthz')
     def healthz():
-        return jsonify(ok=True, plans=len(P.PLANS))
+        return jsonify(ok=True, plans=len(P.PLANS),
+                       db=app.config['DB_LABEL'],
+                       persistent=app.config['DB_PERSISTENT'],
+                       users=User.query.count(),
+                       entries=Entry.query.count())
 
 # ---------- рейтинг ----------
 def last_active_month(rows):

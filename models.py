@@ -49,3 +49,9 @@ class MonthClose(db.Model):
     month = db.Column(db.String(7), primary_key=True)     # '2026-07'
     closed_at = db.Column(db.DateTime, default=datetime.utcnow)
     closed_by = db.Column(db.Integer)
+
+class Setting(db.Model):
+    """Внутренние настройки приложения (например, постоянный SECRET_KEY,
+    чтобы сессии не слетали при каждом перезапуске)."""
+    key = db.Column(db.String(40), primary_key=True)
+    value = db.Column(db.Text)
