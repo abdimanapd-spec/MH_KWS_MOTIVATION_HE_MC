@@ -72,6 +72,7 @@ def create_app():
         db.create_all()
         app.secret_key = secret_key()
         seed()
+        sync_outlets()
     register_routes(app)
     return app
 
@@ -108,6 +109,35 @@ def seed():
             json.dump(creds, f, ensure_ascii=False, indent=1)
     except Exception:
         pass
+
+def sync_outlets():
+    """Подтягивает справочные поля точек из program_data.json на каждом старте.
+
+    seed() отрабатывает только на пустой базе, поэтому без этого правки в
+    program_data.json (переименование, город, канал, новая точка) не доезжают
+    до боевой базы. Привязку к менеджеру (manager_id) НЕ трогаем — её ведёт
+    админ руками; отгрузки привязаны к id точки и не затрагиваются.
+    """
+    existing = {o.id: o for o in Outlet.query.all()}
+    by_team = {}
+    for u in User.query.filter_by(role='manager').all():
+        by_team.setdefault(u.team, u)
+    touched = 0
+    for pl in P.PLANS:
+        o = existing.get(pl['id'])
+        if o is None:
+            m = by_team.get(pl['team'])
+            db.session.add(Outlet(id=pl['id'], name=pl['name'], brand=pl['brand'],
+                                  city=pl['city'], channel=pl['channel'], team=pl['team'],
+                                  manager_id=m.id if m else None))
+            touched += 1
+            continue
+        for f in ('name', 'brand', 'city', 'channel', 'team'):
+            if getattr(o, f) != pl[f]:
+                setattr(o, f, pl[f]); touched += 1
+    if touched:
+        db.session.commit()
+    return touched
 
 # ---------- auth ----------
 def current_user():
