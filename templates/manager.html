@@ -31,7 +31,7 @@
   <tbody>
   {% for r in rows %}
     <tr>
-      <td class="l"><b>{{ r.o.name }}</b>{% if r.plan.rebased %} <span class="star" title="план поднят по собственному тренду точки">★</span>{% endif %}
+      <td class="l"><b>{{ r.o.name }}</b>{% if r.plan.rebased %} <span class="star" title="план поднят по собственному тренду точки">★</span>{% endif %}{% if co.get(r.o.id) %} <span class="chip" title="точку ведёте вместе с: {{ co[r.o.id] }}">👥 вместе с {{ co[r.o.id] }}</span>{% endif %}
         <br><span class="muted">{{ r.o.city }} · {{ r.o.channel }}</span></td>
       <td class="center"><span class="tag {{ 'hy' if r.o.brand=='HY' else 'mc' }}">{{ r.o.brand }}</span></td>
       <td>{{ r.plan.target }}</td>

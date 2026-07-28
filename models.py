@@ -29,6 +29,20 @@ class Outlet(db.Model):
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     manager = db.relationship('User', backref='outlets')
 
+class OutletAccess(db.Model):
+    """Дополнительный доступ к точке: сеть может вести несколько менеджеров.
+
+    Ответственный (Outlet.manager_id) остаётся один — по нему считается команда
+    в рейтинге; остальные получают такие же права на ввод отгрузок.
+    """
+    __tablename__ = 'outlet_access'
+    id = db.Column(db.Integer, primary_key=True)
+    outlet_id = db.Column(db.Integer, db.ForeignKey('outlet.id'), index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    outlet = db.relationship('Outlet', backref='shared')
+    user = db.relationship('User', backref='shared_outlets')
+    __table_args__ = (db.UniqueConstraint('outlet_id', 'user_id', name='uix_access'),)
+
 class Entry(db.Model):
     """Факт отгрузки: строка на (ТТ, дата, SKU). Ежедневный журнал."""
     id = db.Column(db.Integer, primary_key=True)

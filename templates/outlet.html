@@ -6,6 +6,11 @@
 </h1>
 <p class="sub">{{ o.city }} · {{ o.channel }}-трейд · команда «{{ o.team }}» · план июль–декабрь: <b>{{ plan.target }}</b> бут.
 {% if plan.is_chain %}· <span class="tag">сеть · один план</span>{% endif %}</p>
+{% if team|length > 1 %}
+<p class="sub" style="margin-top:-6px">👥 Точку ведут вместе:
+  {% for m in team %}<b>{{ m.name }}</b>{% if loop.first %} <span class="muted">(ответственный)</span>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}.
+  <span class="muted">Отгрузки общие — вносите только свои дни, чтобы не задвоить.</span></p>
+{% endif %}
 
 <div class="kpis">
   <div class="kpi alt"><div class="l">Заработано (факт)</div><div class="v">{{ fmt(summ.earned) }} ₸</div>
@@ -80,13 +85,14 @@
 <div class="card" style="padding:12px">
 {% if jdays %}
 <table>
-  <thead><tr><th class="l">Дата</th><th>Волна</th><th>Бут. (экв.)</th><th class="l">SKU</th><th></th></tr></thead>
+  <thead><tr><th class="l">Дата</th><th>Волна</th><th>Бут. (экв.)</th><th class="l">SKU</th>{% if team|length > 1 %}<th class="l">Внёс</th>{% endif %}<th></th></tr></thead>
   <tbody>
   {% for d in jdays %}
     <tr>
       <td class="l">{{ d.date }}{% if d.closed %} <span class="chip closed">закрыт</span>{% endif %}</td>
       <td>{{ month_wave[d.month] }}</td><td>{{ d.bottles }}</td>
       <td class="l muted">{{ d.line }}</td>
+      {% if team|length > 1 %}<td class="l muted">{{ d.by or '—' }}</td>{% endif %}
       <td>
         {% if not (d.closed and can_edit) %}
           <a class="btn sm ghost" href="{{ url_for('outlet', oid=o.id, date=d.date) }}">изменить</a>

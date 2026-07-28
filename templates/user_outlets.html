@@ -3,8 +3,15 @@
 <p><a href="{{ url_for('users') }}">← пользователи</a></p>
 <h1>Точки менеджера: {{ u.name }}</h1>
 <p class="sub">Логин <code>{{ u.username }}</code>{% if u.team %} · команда «{{ u.team }}»{% endif %}. Отметьте точки, которые ведёт этот менеджер. Снятая галочка освобождает точку, факт отгрузок при этом сохраняется.</p>
+<div class="card" style="padding:10px 12px">
+  <b>🔗 Сети можно вести вдвоём и больше.</b>
+  <span class="muted">Галочка на сети (Metro, Galmart) <b>добавляет</b> менеджера к тем, кто её уже ведёт — прежний доступ не снимается.
+  Вторая отметка, «★ ответственный», говорит, за кем сеть числится в рейтинге команды: она всегда одна, и прежний ответственный остаётся со-менеджером.
+  Обычная точка остаётся за одним человеком: поставив галочку, вы забираете её у прежнего владельца.</span>
+</div>
 
 <form method="post">
+<input type="hidden" name="leadform" value="1">
 {% for sec, rows in sections %}
   {% set si = loop.index %}
   <h2>{{ '🔗 СЕТИ · центральный план' if sec=='СЕТИ' else sec }}
@@ -13,17 +20,19 @@
       <a href="#" class="btn sm ghost" onclick="tick('{{ si }}',false);return false">снять</a></h2>
   <div class="card" style="padding:12px">
   <table>
-    <thead><tr><th style="width:40px"></th><th class="l">Точка</th><th>Марка</th><th>План</th><th class="l">Сейчас у кого</th></tr></thead>
+    <thead><tr><th style="width:40px"></th>{% if sec=='СЕТИ' %}<th style="width:96px">★ ответств.</th>{% endif %}<th class="l">Точка</th><th>Марка</th><th>План</th><th class="l">Сейчас у кого</th></tr></thead>
     <tbody>
     {% for r in rows %}
       <tr>
         <td class="center"><input type="checkbox" name="oid" value="{{ r.o.id }}"
             data-sec="{{ si }}"
-            {{ 'checked' if r.o.manager_id==u.id }}></td>
+            {{ 'checked' if r.checked }}></td>
+        {% if sec=='СЕТИ' %}<td class="center"><input type="checkbox" name="lead" value="{{ r.o.id }}"
+            {{ 'checked' if r.lead }}></td>{% endif %}
         <td class="l"><b>{{ r.o.name }}</b> <span class="muted">· {{ r.o.city }} · {{ r.o.channel }}</span></td>
         <td class="center"><span class="tag {{ 'hy' if r.o.brand=='HY' else 'mc' }}">{{ r.o.brand }}</span></td>
         <td>{{ r.plan.target }}</td>
-        <td class="l muted">{{ r.o.manager.name if r.o.manager else '— свободна —' }}</td>
+        <td class="l muted">{% if r.team %}{% for m in r.team %}{{ m.name }}{% if not loop.last %} + {% endif %}{% endfor %}{% else %}— свободна —{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>

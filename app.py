@@ -7,7 +7,7 @@ from datetime import datetime
 from collections import defaultdict
 from flask import (Flask, render_template, request, redirect, url_for, session,
                    flash, abort, jsonify, Response)
-from models import db, User, Outlet, Entry, MonthClose, Setting
+from models import db, User, Outlet, Entry, MonthClose, Setting, OutletAccess
 import program as P
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -160,6 +160,34 @@ def login_required(role=None):
 def closed_months():
     return {m.month for m in MonthClose.query.all()}
 
+# ---------- доступ к точкам ----------
+def is_chain(oid):
+    """Сеть (Metro, Galmart) — только у сетей может быть несколько менеджеров."""
+    return bool(P.PLAN_BY_ID[oid].get('is_chain'))
+
+def shared_ids(uid):
+    return {a.outlet_id for a in OutletAccess.query.filter_by(user_id=uid).all()}
+
+def my_outlets(u):
+    """Точки менеджера: свои + сети, к которым ему открыт общий доступ."""
+    rows = Outlet.query.filter_by(manager_id=u.id).all()
+    extra = shared_ids(u.id) - {o.id for o in rows}
+    if extra:
+        rows += Outlet.query.filter(Outlet.id.in_(extra)).all()
+    return rows
+
+def can_access(u, o):
+    if u.role == 'admin' or o.manager_id == u.id:
+        return True
+    return OutletAccess.query.filter_by(outlet_id=o.id, user_id=u.id).first() is not None
+
+def outlet_team(o):
+    """Кто ведёт точку: ответственный первым, затем остальные."""
+    team = [o.manager] if o.manager else []
+    team += [a.user for a in OutletAccess.query.filter_by(outlet_id=o.id).all()
+             if a.user and a.user_id != o.manager_id]
+    return team
+
 # ---------- агрегация из ежедневного журнала ----------
 def entries_map(oid):
     """{(date, sku): units} по всем отгрузкам точки."""
@@ -263,9 +291,15 @@ def register_routes(app):
     @login_required('manager')
     def dashboard():
         u = current_user()
-        rows = [outlet_summary(o) for o in Outlet.query.filter_by(manager_id=u.id).all()]
+        rows = [outlet_summary(o) for o in my_outlets(u)]
+        # у сетей точку могут вести несколько человек — подписываем, кто ещё
+        co = {}
+        for r in rows:
+            others = [m.name for m in outlet_team(r['o']) if m.id != u.id]
+            if others:
+                co[r['o'].id] = ', '.join(others)
         return render_template('manager.html', sections=group_sections(rows),
-                               waves=P.WAVE_PERIODS, all_rows=rows,
+                               waves=P.WAVE_PERIODS, all_rows=rows, co=co,
                                cur_wave=current_wave())
 
     @app.route('/outlet/<int:oid>')
@@ -273,7 +307,7 @@ def register_routes(app):
     def outlet(oid):
         o = Outlet.query.get_or_404(oid)
         u = current_user()
-        if u.role != 'admin' and o.manager_id != u.id:
+        if not can_access(u, o):
             abort(403)
         plan = P.PLAN_BY_ID[o.id]
         skus = P.sku_list(o.brand)
@@ -291,16 +325,24 @@ def register_routes(app):
         for (d, sk), v in emap.items():
             if v:
                 journal[d][sk] = v
+        # кто вносил день (важно для сетей, где точку ведут несколько менеджеров)
+        who = defaultdict(set)
+        names = {x.id: (x.name or x.username) for x in User.query.all()}
+        for e in Entry.query.filter_by(outlet_id=o.id).all():
+            if e.updated_by:
+                who[e.date].add(names.get(e.updated_by, '—'))
         jdays = []
         for d in sorted(journal, reverse=True):
             units = journal[d]
             b = P.eq_bottles(o.brand, units)
             jdays.append(dict(date=d, month=d[:7], bottles=round(b, 1),
                               closed=d[:7] in closed,
+                              by=', '.join(sorted(who.get(d, ()))),
                               line=', '.join(f'{k}×{int(v)}' for k, v in units.items() if v)))
         return render_template('outlet.html', o=o, plan=plan, skus=skus, summ=summ,
                                closed=closed, jdays=jdays, edit_date=edit_date,
                                edit_vals=edit_vals, can_edit=(u.role != 'admin'),
+                               team=outlet_team(o),
                                wavep=P.WAVE_PERIODS, month_wave=P.MONTH_WAVE)
 
     @app.route('/outlet/<int:oid>/save', methods=['POST'])
@@ -308,7 +350,7 @@ def register_routes(app):
     def save_entry(oid):
         o = Outlet.query.get_or_404(oid)
         u = current_user()
-        if u.role != 'admin' and o.manager_id != u.id:
+        if not can_access(u, o):
             abort(403)
         date = request.form.get('date', '').strip()
         if not (date and date[:7] in P.MONTHS and date[:4] == '2026'):
@@ -336,7 +378,7 @@ def register_routes(app):
     def delete_day(oid):
         o = Outlet.query.get_or_404(oid)
         u = current_user()
-        if u.role != 'admin' and o.manager_id != u.id:
+        if not can_access(u, o):
             abort(403)
         date = request.form.get('date', '')
         if date[:7] in closed_months() and u.role != 'admin':
@@ -393,8 +435,11 @@ def register_routes(app):
         cnt = {}
         for o in Outlet.query.all():
             cnt[o.manager_id] = cnt.get(o.manager_id, 0) + 1
+        shared = {}
+        for a in OutletAccess.query.all():
+            shared[a.user_id] = shared.get(a.user_id, 0) + 1
         free = Outlet.query.filter(Outlet.manager_id.is_(None)).count()
-        return render_template('users.html', users=us, cnt=cnt, free=free,
+        return render_template('users.html', users=us, cnt=cnt, shared=shared, free=free,
                                teams=list(TEAM_MANAGER.keys()),
                                new_pw=session.pop('new_pw', None))
 
@@ -433,10 +478,22 @@ def register_routes(app):
         u = User.query.get_or_404(uid)
         if u.role == 'admin':
             flash('Админа удалить нельзя'); return redirect(url_for('users'))
+        passed = 0
         for o in Outlet.query.filter_by(manager_id=u.id).all():
-            o.manager_id = None
+            # если точку вёл ещё кто-то (сеть) — ответственным становится он,
+            # чтобы сеть не осталась без владельца
+            other = OutletAccess.query.filter(OutletAccess.outlet_id == o.id,
+                                              OutletAccess.user_id != u.id).first()
+            if other:
+                o.manager_id = other.user_id
+                db.session.delete(other); passed += 1
+            else:
+                o.manager_id = None
+        for a in OutletAccess.query.filter_by(user_id=u.id).all():
+            db.session.delete(a)
         db.session.delete(u); db.session.commit()
-        flash(f'Пользователь «{u.name}» удалён, его точки освобождены')
+        flash(f'Пользователь «{u.name}» удалён, его точки освобождены'
+              + (f' (из них {passed} перешли к со-менеджеру)' if passed else ''))
         return redirect(url_for('users'))
 
     @app.route('/admin/users/<int:uid>/outlets', methods=['GET', 'POST'])
@@ -445,15 +502,67 @@ def register_routes(app):
         u = User.query.get_or_404(uid)
         if request.method == 'POST':
             keep = {int(x) for x in request.form.getlist('oid')}
+            lead = {int(x) for x in request.form.getlist('lead')}
+            # форма присылает скрытый маркер — значит колонка «ответственный»
+            # действительно показывалась и снятой отметке можно верить
+            has_lead = bool(request.form.get('leadform'))
+
+            def grant(oid, user_id):
+                if not OutletAccess.query.filter_by(outlet_id=oid, user_id=user_id).first():
+                    db.session.add(OutletAccess(outlet_id=oid, user_id=user_id))
+
+            def revoke(oid, user_id):
+                a = OutletAccess.query.filter_by(outlet_id=oid, user_id=user_id).first()
+                if a:
+                    db.session.delete(a)
+
+            def heir(oid, not_user):
+                """Со-менеджер, которому можно передать ответственность."""
+                return OutletAccess.query.filter(
+                    OutletAccess.outlet_id == oid,
+                    OutletAccess.user_id != not_user).first()
+
+            own = co = 0
             for o in Outlet.query.all():
+                chain = is_chain(o.id)
                 if o.id in keep:
-                    o.manager_id = u.id
-                elif o.manager_id == u.id:
-                    o.manager_id = None
+                    take = (o.manager_id in (None, u.id) or not chain or o.id in lead)
+                    if take and chain and o.manager_id == u.id and has_lead \
+                            and o.id not in lead and heir(o.id, u.id):
+                        take = False          # сняли отметку — уступаем ответственность
+                    if take:
+                        prev = o.manager_id
+                        if prev and prev != u.id and chain:
+                            grant(o.id, prev)  # прежний ответственный остаётся в деле
+                        o.manager_id = u.id
+                        revoke(o.id, u.id)
+                        own += 1
+                    else:
+                        if o.manager_id == u.id:
+                            other = heir(o.id, u.id)
+                            o.manager_id = other.user_id
+                            db.session.delete(other)
+                        grant(o.id, u.id)      # сеть за кем-то — просто добавляем второго
+                        co += 1
+                else:
+                    revoke(o.id, u.id)
+                    if o.manager_id == u.id:
+                        other = heir(o.id, u.id)
+                        if other:
+                            o.manager_id = other.user_id
+                            db.session.delete(other)
+                        else:
+                            o.manager_id = None
             db.session.commit()
-            flash(f'Точки для «{u.name}» сохранены ({len(keep)})')
+            flash(f'Точки для «{u.name}» сохранены: {own} свои'
+                  + (f', {co} общие (сети)' if co else ''))
             return redirect(url_for('users'))
-        rows = [dict(o=o, plan=P.PLAN_BY_ID[o.id], section=P.section_of(P.PLAN_BY_ID[o.id]))
+        mine = shared_ids(u.id)
+        rows = [dict(o=o, plan=P.PLAN_BY_ID[o.id], section=P.section_of(P.PLAN_BY_ID[o.id]),
+                     checked=(o.manager_id == u.id or o.id in mine),
+                     lead=(o.manager_id == u.id),
+                     chain=bool(P.PLAN_BY_ID[o.id].get('is_chain')),
+                     team=outlet_team(o))
                 for o in Outlet.query.all()]
         return render_template('user_outlets.html', u=u,
                                sections=group_sections(rows))
@@ -473,6 +582,8 @@ def register_routes(app):
                       for u in User.query.order_by(User.id).all()],
             'outlets': [dict(id=o.id, manager=uname.get(o.manager_id))
                         for o in Outlet.query.order_by(Outlet.id).all()],
+            'shared': [dict(outlet=a.outlet_id, manager=uname.get(a.user_id))
+                       for a in OutletAccess.query.order_by(OutletAccess.id).all()],
             'entries': [dict(outlet=e.outlet_id, date=e.date, sku=e.sku, units=e.units)
                         for e in Entry.query.order_by(Entry.id).all()],
             'closed': sorted(m.month for m in MonthClose.query.all()),
@@ -516,6 +627,14 @@ def register_routes(app):
             m = by_name.get(row.get('manager') or '')
             if o and m and o.manager_id != m.id:
                 o.manager_id = m.id; linked += 1
+        have = {(a.outlet_id, a.user_id) for a in OutletAccess.query.all()}
+        for row in data.get('shared', []):
+            o = db.session.get(Outlet, row.get('outlet')) if row.get('outlet') else None
+            m = by_name.get(row.get('manager') or '')
+            if not (o and m) or o.manager_id == m.id or (o.id, m.id) in have:
+                continue
+            db.session.add(OutletAccess(outlet_id=o.id, user_id=m.id))
+            have.add((o.id, m.id)); linked += 1
         seen = {(e.outlet_id, e.date, e.sku) for e in Entry.query.all()}
         new_e = 0
         for row in data.get('entries', []):
@@ -541,7 +660,7 @@ def register_routes(app):
         # мои цифры — чтобы менеджер видел инструкцию «про себя»
         my = None
         if u.role == 'manager':
-            rows = [outlet_summary(o) for o in Outlet.query.filter_by(manager_id=u.id).all()]
+            rows = [outlet_summary(o) for o in my_outlets(u)]
             my = dict(n=len(rows),
                       pot110=sum(r['pot110'] for r in rows),
                       earned=sum(r['earned'] for r in rows),
