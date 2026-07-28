@@ -7,7 +7,8 @@ from datetime import datetime
 from collections import defaultdict
 from flask import (Flask, render_template, request, redirect, url_for, session,
                    flash, abort, jsonify, Response)
-from models import db, User, Outlet, Entry, MonthClose, Setting, OutletAccess
+from models import (db, User, Outlet, Entry, MonthClose, Setting,
+                    OutletAccess, TeamAccess)
 import program as P
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -161,31 +162,57 @@ def closed_months():
     return {m.month for m in MonthClose.query.all()}
 
 # ---------- доступ к точкам ----------
+# Любую точку могут вести несколько человек. Один из них — «ответственный»
+# (Outlet.manager_id): по нему точка попадает в командный зачёт. Остальные
+# получают доступ либо поимённо (OutletAccess), либо оптом — как супервайзер
+# над целой командой (TeamAccess). Права у всех одинаковые.
 def is_chain(oid):
-    """Сеть (Metro, Galmart) — только у сетей может быть несколько менеджеров."""
     return bool(P.PLAN_BY_ID[oid].get('is_chain'))
 
 def shared_ids(uid):
     return {a.outlet_id for a in OutletAccess.query.filter_by(user_id=uid).all()}
 
+def sup_teams(uid):
+    """Команды, над которыми человек супервайзер."""
+    return {t.team for t in TeamAccess.query.filter_by(user_id=uid).all()}
+
+def supervisors_of(team):
+    if not team:
+        return []
+    return [t.user for t in TeamAccess.query.filter_by(team=team).all() if t.user]
+
 def my_outlets(u):
-    """Точки менеджера: свои + сети, к которым ему открыт общий доступ."""
+    """Точки человека: свои + открытые поимённо + все точки подшефных команд."""
     rows = Outlet.query.filter_by(manager_id=u.id).all()
-    extra = shared_ids(u.id) - {o.id for o in rows}
+    have = {o.id for o in rows}
+    extra = shared_ids(u.id) - have
     if extra:
         rows += Outlet.query.filter(Outlet.id.in_(extra)).all()
+        have |= extra
+    teams = sup_teams(u.id)
+    if teams:
+        rows += [o for o in Outlet.query.filter(Outlet.team.in_(teams)).all()
+                 if o.id not in have]
     return rows
 
 def can_access(u, o):
     if u.role == 'admin' or o.manager_id == u.id:
         return True
-    return OutletAccess.query.filter_by(outlet_id=o.id, user_id=u.id).first() is not None
+    if OutletAccess.query.filter_by(outlet_id=o.id, user_id=u.id).first():
+        return True
+    return bool(o.team) and TeamAccess.query.filter_by(
+        user_id=u.id, team=o.team).first() is not None
 
 def outlet_team(o):
     """Кто ведёт точку: ответственный первым, затем остальные."""
     team = [o.manager] if o.manager else []
-    team += [a.user for a in OutletAccess.query.filter_by(outlet_id=o.id).all()
-             if a.user and a.user_id != o.manager_id]
+    seen = {o.manager_id}
+    for a in OutletAccess.query.filter_by(outlet_id=o.id).all():
+        if a.user and a.user_id not in seen:
+            team.append(a.user); seen.add(a.user_id)
+    for s in supervisors_of(o.team):
+        if s.id not in seen:
+            team.append(s); seen.add(s.id)
     return team
 
 # ---------- агрегация из ежедневного журнала ----------
@@ -432,14 +459,25 @@ def register_routes(app):
     @login_required('admin')
     def users():
         us = User.query.order_by(User.role.desc(), User.name).all()
-        cnt = {}
-        for o in Outlet.query.all():
+        outlets = Outlet.query.all()
+        cnt, own_ids, by_team = {}, {}, {}
+        for o in outlets:
             cnt[o.manager_id] = cnt.get(o.manager_id, 0) + 1
-        shared = {}
+            own_ids.setdefault(o.manager_id, set()).add(o.id)
+            by_team.setdefault(o.team, set()).add(o.id)
+        acc = {}
         for a in OutletAccess.query.all():
-            shared[a.user_id] = shared.get(a.user_id, 0) + 1
+            acc.setdefault(a.user_id, set()).add(a.outlet_id)
+        sups = {}
+        for t in TeamAccess.query.all():
+            sups.setdefault(t.user_id, []).append(t.team)
+            acc.setdefault(t.user_id, set()).update(by_team.get(t.team, ()))
+        for tl in sups.values():
+            tl.sort()
+        shared = {uid: len(s - own_ids.get(uid, set())) for uid, s in acc.items()}
         free = Outlet.query.filter(Outlet.manager_id.is_(None)).count()
-        return render_template('users.html', users=us, cnt=cnt, shared=shared, free=free,
+        return render_template('users.html', users=us, cnt=cnt, shared=shared,
+                               sups=sups, free=free,
                                teams=list(TEAM_MANAGER.keys()),
                                new_pw=session.pop('new_pw', None))
 
@@ -480,8 +518,8 @@ def register_routes(app):
             flash('Админа удалить нельзя'); return redirect(url_for('users'))
         passed = 0
         for o in Outlet.query.filter_by(manager_id=u.id).all():
-            # если точку вёл ещё кто-то (сеть) — ответственным становится он,
-            # чтобы сеть не осталась без владельца
+            # если точку вёл ещё кто-то — ответственным становится он,
+            # чтобы точка не осталась без владельца
             other = OutletAccess.query.filter(OutletAccess.outlet_id == o.id,
                                               OutletAccess.user_id != u.id).first()
             if other:
@@ -491,6 +529,8 @@ def register_routes(app):
                 o.manager_id = None
         for a in OutletAccess.query.filter_by(user_id=u.id).all():
             db.session.delete(a)
+        for t in TeamAccess.query.filter_by(user_id=u.id).all():
+            db.session.delete(t)
         db.session.delete(u); db.session.commit()
         flash(f'Пользователь «{u.name}» удалён, его точки освобождены'
               + (f' (из них {passed} перешли к со-менеджеру)' if passed else ''))
@@ -524,15 +564,14 @@ def register_routes(app):
 
             own = co = 0
             for o in Outlet.query.all():
-                chain = is_chain(o.id)
                 if o.id in keep:
-                    take = (o.manager_id in (None, u.id) or not chain or o.id in lead)
-                    if take and chain and o.manager_id == u.id and has_lead \
+                    take = (o.manager_id in (None, u.id) or o.id in lead)
+                    if take and o.manager_id == u.id and has_lead \
                             and o.id not in lead and heir(o.id, u.id):
                         take = False          # сняли отметку — уступаем ответственность
                     if take:
                         prev = o.manager_id
-                        if prev and prev != u.id and chain:
+                        if prev and prev != u.id:
                             grant(o.id, prev)  # прежний ответственный остаётся в деле
                         o.manager_id = u.id
                         revoke(o.id, u.id)
@@ -542,7 +581,7 @@ def register_routes(app):
                             other = heir(o.id, u.id)
                             o.manager_id = other.user_id
                             db.session.delete(other)
-                        grant(o.id, u.id)      # сеть за кем-то — просто добавляем второго
+                        grant(o.id, u.id)      # точка уже за кем-то — просто добавляем
                         co += 1
                 else:
                     revoke(o.id, u.id)
@@ -553,19 +592,34 @@ def register_routes(app):
                             db.session.delete(other)
                         else:
                             o.manager_id = None
+
+            # супервайзер над целыми командами
+            want = set(request.form.getlist('team'))
+            had = sup_teams(u.id)
+            for t in TeamAccess.query.filter_by(user_id=u.id).all():
+                if t.team not in want:
+                    db.session.delete(t)
+            for t in want - had:
+                db.session.add(TeamAccess(user_id=u.id, team=t))
+
             db.session.commit()
-            flash(f'Точки для «{u.name}» сохранены: {own} свои'
-                  + (f', {co} общие (сети)' if co else ''))
+            flash(f'Доступ для «{u.name}» сохранён: точек под ответственность — {own}'
+                  + (f', общих — {co}' if co else '')
+                  + (f'; супервайзер над: {", ".join(sorted(want))}' if want else ''))
             return redirect(url_for('users'))
         mine = shared_ids(u.id)
+        sup = sup_teams(u.id)
         rows = [dict(o=o, plan=P.PLAN_BY_ID[o.id], section=P.section_of(P.PLAN_BY_ID[o.id]),
                      checked=(o.manager_id == u.id or o.id in mine),
                      lead=(o.manager_id == u.id),
                      chain=bool(P.PLAN_BY_ID[o.id].get('is_chain')),
+                     via_team=(o.team in sup and o.manager_id != u.id
+                               and o.id not in mine),
                      team=outlet_team(o))
                 for o in Outlet.query.all()]
         return render_template('user_outlets.html', u=u,
-                               sections=group_sections(rows))
+                               sections=group_sections(rows),
+                               all_teams=list(TEAM_MANAGER.keys()), sup=sup)
 
     # ----- резервная копия (только админ) -----
     @app.route('/admin/backup.json')
@@ -584,6 +638,8 @@ def register_routes(app):
                         for o in Outlet.query.order_by(Outlet.id).all()],
             'shared': [dict(outlet=a.outlet_id, manager=uname.get(a.user_id))
                        for a in OutletAccess.query.order_by(OutletAccess.id).all()],
+            'supervisors': [dict(manager=uname.get(t.user_id), team=t.team)
+                            for t in TeamAccess.query.order_by(TeamAccess.id).all()],
             'entries': [dict(outlet=e.outlet_id, date=e.date, sku=e.sku, units=e.units)
                         for e in Entry.query.order_by(Entry.id).all()],
             'closed': sorted(m.month for m in MonthClose.query.all()),
@@ -635,6 +691,14 @@ def register_routes(app):
                 continue
             db.session.add(OutletAccess(outlet_id=o.id, user_id=m.id))
             have.add((o.id, m.id)); linked += 1
+        have_t = {(t.user_id, t.team) for t in TeamAccess.query.all()}
+        for row in data.get('supervisors', []):
+            m = by_name.get(row.get('manager') or '')
+            t = row.get('team')
+            if not (m and t) or (m.id, t) in have_t:
+                continue
+            db.session.add(TeamAccess(user_id=m.id, team=t))
+            have_t.add((m.id, t)); linked += 1
         seen = {(e.outlet_id, e.date, e.sku) for e in Entry.query.all()}
         new_e = 0
         for row in data.get('entries', []):

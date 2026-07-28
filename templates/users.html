@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block body %}
 <h1>Пользователи</h1>
-<p class="sub">Персональный логин для каждого менеджера. Точки закрепляются за конкретным человеком — менеджер видит и заполняет только свои. Сети (Metro, Galmart) можно открыть сразу нескольким менеджерам.</p>
+<p class="sub">Персональный логин для каждого менеджера. У каждой точки один ответственный — по нему она идёт в командный зачёт, — но доступ к ней можно открыть и другим: поимённо или сразу всей командой (супервайзер).</p>
 
 {% if new_pw %}
 <div class="card" style="border-color:#b98d3a;background:#fffaf0">
@@ -40,7 +40,8 @@
     <tr>
       <td class="l"><b>{{ u.name }}</b></td>
       <td class="l"><code>{{ u.username }}</code></td>
-      <td class="l">{% if u.role=='admin' %}<span class="tag">админ</span>{% else %}{{ u.team or '—' }}{% endif %}</td>
+      <td class="l">{% if u.role=='admin' %}<span class="tag">админ</span>{% else %}{{ u.team or '—' }}{% endif %}
+          {% if sups.get(u.id) %}<div class="muted" style="font-size:11px">🛡 супервайзер: {{ sups[u.id]|join(', ') }}</div>{% endif %}</td>
       <td>{{ cnt.get(u.id, 0) + shared.get(u.id, 0) }}{% if shared.get(u.id) %}<div class="muted" style="font-size:11px">из них {{ shared[u.id] }} общие</div>{% endif %}</td>
       <td class="l">
         <form method="post" action="{{ url_for('user_password', uid=u.id) }}" style="display:flex;gap:6px">

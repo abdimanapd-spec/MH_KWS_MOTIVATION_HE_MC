@@ -30,7 +30,7 @@ class Outlet(db.Model):
     manager = db.relationship('User', backref='outlets')
 
 class OutletAccess(db.Model):
-    """Дополнительный доступ к точке: сеть может вести несколько менеджеров.
+    """Дополнительный доступ к точке: точку может вести несколько человек.
 
     Ответственный (Outlet.manager_id) остаётся один — по нему считается команда
     в рейтинге; остальные получают такие же права на ввод отгрузок.
@@ -42,6 +42,16 @@ class OutletAccess(db.Model):
     outlet = db.relationship('Outlet', backref='shared')
     user = db.relationship('User', backref='shared_outlets')
     __table_args__ = (db.UniqueConstraint('outlet_id', 'user_id', name='uix_access'),)
+
+class TeamAccess(db.Model):
+    """Супервайзер над командой: доступ сразу ко всем точкам этой команды,
+    включая те, что появятся позже. Права те же, что у менеджера точки."""
+    __tablename__ = 'team_access'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    team = db.Column(db.String(40), index=True)
+    user = db.relationship('User', backref='supervised_teams')
+    __table_args__ = (db.UniqueConstraint('user_id', 'team', name='uix_team_access'),)
 
 class Entry(db.Model):
     """Факт отгрузки: строка на (ТТ, дата, SKU). Ежедневный журнал."""
