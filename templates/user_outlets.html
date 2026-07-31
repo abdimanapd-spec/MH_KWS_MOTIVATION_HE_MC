@@ -1,24 +1,26 @@
 {% extends 'base.html' %}
+{% from '_icons.html' import ic %}
+{% block title %}Доступ к точкам: {{ u.name }}{% endblock %}
 {% block body %}
-<p><a href="{{ url_for('users') }}">← пользователи</a></p>
+<p style="margin:18px 0 0"><a href="{{ url_for('users') }}">{{ ic('back', 14) }} пользователи</a></p>
 <h1>Доступ к точкам: {{ u.name }}</h1>
 <p class="sub">Логин <code>{{ u.username }}</code>{% if u.team %} · команда «{{ u.team }}»{% endif %}. Отметьте точки, которые ведёт или контролирует этот человек. Снятая галочка убирает доступ, факт отгрузок при этом сохраняется.</p>
-<div class="card" style="padding:10px 12px">
-  <b>👥 Одну точку могут вести несколько человек.</b>
+<div class="card pad-t">
+  <b>{{ ic('users', 15) }} Одну точку могут вести несколько человек.</b>
   <span class="muted">Галочка <b>добавляет</b> человека к тем, кто уже ведёт точку — ничей доступ при этом не снимается.
-  Вторая отметка, «★ ответственный», говорит, за кем точка числится в командном зачёте: она всегда одна, прежний ответственный остаётся со-менеджером.
+  Вторая отметка, «ответственный», говорит, за кем точка числится в командном зачёте: она всегда одна, прежний ответственный остаётся со-менеджером.
   У всех, у кого есть доступ, права одинаковые: смотреть и вносить отгрузки. В журнале точки видно, кто внёс каждый день.</span>
 </div>
 
 <form method="post">
 <input type="hidden" name="leadform" value="1">
 
-<div class="card" style="border-color:#b98d3a;background:#fffaf0">
-  <h2 style="margin-top:0">🛡 Супервайзер над командами</h2>
+<div class="card warm">
+  <h2 style="margin-top:0">{{ ic('shield', 17) }}Супервайзер над командами</h2>
   <p class="sub" style="margin-top:0">Отметьте команду — человек получит доступ ко <b>всем</b> её точкам сразу, включая те, что появятся позже. Отдельные галочки для этого ставить не нужно.</p>
   <div class="rowflex" style="gap:16px;flex-wrap:wrap">
     {% for t in all_teams %}
-      <label style="display:flex;gap:6px;align-items:center;cursor:pointer">
+      <label style="display:flex;gap:7px;align-items:center;cursor:pointer">
         <input type="checkbox" name="team" value="{{ t }}" {{ 'checked' if t in sup }}>
         <span>{{ t }}</span>
       </label>
@@ -28,23 +30,25 @@
 
 {% for sec, rows in sections %}
   {% set si = loop.index %}
-  <h2>{{ '🔗 СЕТИ · центральный план' if sec=='СЕТИ' else sec }}
-      <span class="muted" style="font-size:13px">({{ rows|length }})</span>
+  <h2>{% if sec=='СЕТИ' %}{{ ic('link', 17) }}СЕТИ · центральный план{% else %}{{ sec }}{% endif %}
+      <span class="muted">({{ rows|length }})</span>
       <a href="#" class="btn sm ghost" onclick="tick('{{ si }}',true);return false">все</a>
       <a href="#" class="btn sm ghost" onclick="tick('{{ si }}',false);return false">снять</a></h2>
-  <div class="card" style="padding:12px">
+  <div class="card pad-t">
+  <div class="scroll">
   <table>
-    <thead><tr><th style="width:40px">доступ</th><th style="width:96px">★ ответств.</th><th class="l">Точка</th><th>Марка</th><th>План</th><th class="l">Сейчас у кого</th></tr></thead>
+    <thead><tr><th style="width:52px">доступ</th><th style="width:104px">ответств.</th><th class="l">Точка</th><th>Марка</th><th>План</th><th class="l">Сейчас у кого</th></tr></thead>
     <tbody>
     {% for r in rows %}
       <tr>
         <td class="center"><input type="checkbox" name="oid" value="{{ r.o.id }}"
-            data-sec="{{ si }}"
+            data-sec="{{ si }}" aria-label="Доступ к точке {{ r.o.name }}"
             {{ 'checked' if r.checked }}></td>
         <td class="center"><input type="checkbox" name="lead" value="{{ r.o.id }}"
+            aria-label="Ответственный за точку {{ r.o.name }}"
             {{ 'checked' if r.lead }}></td>
         <td class="l"><b>{{ r.o.name }}</b> <span class="muted">· {{ r.o.city }} · {{ r.o.channel }}</span>
-            {% if r.via_team %}<span class="tag" title="доступ через супервайзерство над командой">🛡 команда</span>{% endif %}</td>
+            {% if r.via_team %}<span class="tag" title="доступ через супервайзерство над командой">{{ ic('shield', 12) }}команда</span>{% endif %}</td>
         <td class="center"><span class="tag {{ 'hy' if r.o.brand=='HY' else 'mc' }}">{{ r.o.brand }}</span></td>
         <td>{{ r.plan.target }}</td>
         <td class="l muted">{% if r.team %}{% for m in r.team %}{{ m.name }}{% if not loop.last %} + {% endif %}{% endfor %}{% else %}— свободна —{% endif %}</td>
@@ -53,8 +57,9 @@
     </tbody>
   </table>
   </div>
+  </div>
 {% endfor %}
-  <button class="btn" style="margin-top:14px">Сохранить доступ</button>
+  <button class="btn" style="margin-top:16px">{{ ic('save', 16) }}Сохранить доступ</button>
 </form>
 
 <script>

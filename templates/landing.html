@@ -3,16 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0D1F3C">
 <title>Мотивационная программа 2026</title>
+<script>(function(){try{var t=localStorage.getItem('mh-theme');
+if(t!=='dark'&&t!=='light'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}
+document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+{% from '_icons.html' import ic %}
 <body>
 <div class="landing">
   <div class="box">
-    <div style="font-size:40px">🍾</div>
+    {{ ic('bottle', 44) }}
     <h1>Мотивационная программа 2026</h1>
-    <p class="sub">KWS Kazakhstan</p>
-    <a class="btn" href="{{ url_for('login') }}" style="font-size:16px;padding:12px 30px;margin-top:22px">Войти</a>
+    <p class="sub center">KWS Kazakhstan · Hennessy &amp; Moёt&nbsp;&amp;&nbsp;Chandon · июль–декабрь</p>
+    <a class="btn" href="{{ url_for('login') }}" style="font-size:16px;padding:13px 32px;margin-top:22px">{{ ic('lock', 17) }}Войти</a>
   </div>
 </div>
 </body>

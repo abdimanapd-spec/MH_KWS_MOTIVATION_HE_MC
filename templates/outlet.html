@@ -1,13 +1,15 @@
 {% extends 'base.html' %}
+{% from '_icons.html' import ic %}
+{% block title %}{{ o.name }} · Мотивационная программа 2026{% endblock %}
 {% block body %}
-<p><a href="{{ url_for('dashboard') if user.role=='manager' else url_for('admin') }}">← назад</a></p>
+<p style="margin:18px 0 0"><a href="{{ url_for('dashboard') if user.role=='manager' else url_for('admin') }}">{{ ic('back', 14) }} назад</a></p>
 <h1>{{ o.name }}
   <span class="tag {{ 'hy' if o.brand=='HY' else 'mc' }}">{{ 'Hennessy' if o.brand=='HY' else 'Moёt' }}</span>
 </h1>
 <p class="sub">{{ o.city }} · {{ o.channel }}-трейд · команда «{{ o.team }}» · план июль–декабрь: <b>{{ plan.target }}</b> бут.
-{% if plan.is_chain %}· <span class="tag">сеть · один план</span>{% endif %}</p>
+{% if plan.is_chain %}· <span class="tag">{{ ic('link', 12) }}сеть · один план</span>{% endif %}</p>
 {% if team|length > 1 %}
-<p class="sub" style="margin-top:-6px">👥 Точку ведут вместе:
+<p class="sub" style="margin-top:-8px">{{ ic('users', 15) }} Точку ведут вместе:
   {% for m in team %}<b>{{ m.name }}</b>{% if loop.first %} <span class="muted">(ответственный)</span>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}.
   <span class="muted">Отгрузки общие — вносите только свои дни, чтобы не задвоить.</span></p>
 {% endif %}
@@ -32,14 +34,15 @@
       {% if c.gap.next %}
         <div class="kgap">до {{ c.gap.next }}%: ещё {{ c.gap.pp }} п.п. · {{ c.gap.bottles }} бут. → <b>+{{ fmt(c.gap.money) }} ₸</b></div>
       {% else %}
-        <div class="kgap ok">✓ максимум по волне взят</div>
+        <div class="kgap ok">{{ ic('check', 13) }} максимум по волне взят</div>
       {% endif %}
     </div>
   {% endfor %}
 </div>
 
 <h2>Прогресс по месяцам</h2>
-<div class="card" style="padding:12px">
+<div class="card pad-t">
+<div class="scroll">
 <table>
   <thead><tr><th class="l">Месяц</th><th>Волна</th><th>План (полволны)</th><th>Факт, бут.</th><th>%</th><th>Дней внесено</th></tr></thead>
   <tbody>
@@ -54,36 +57,43 @@
   </tbody>
 </table>
 </div>
+</div>
 
 {% if can_edit or user.role=='admin' %}
 <h2>{{ 'Изменить отгрузку за ' + edit_date if edit_date else 'Добавить отгрузку за день' }}</h2>
 <div class="card">
   <form method="post" action="{{ url_for('save_entry', oid=o.id) }}">
-    <div class="rowflex" style="margin-bottom:12px">
-      <label class="muted">Дата отгрузки:&nbsp;</label>
-      <input type="date" name="date" min="2026-07-01" max="2026-12-31"
+    <div class="rowflex" style="margin-bottom:14px">
+      <label class="muted" for="dt">Дата отгрузки:&nbsp;</label>
+      <input id="dt" type="date" name="date" min="2026-07-01" max="2026-12-31"
              value="{{ edit_date }}" required style="width:auto">
       <span class="muted">штуки проданных бутылок по каждому SKU за этот день</span>
     </div>
+    <div class="scroll">
     <table>
       <thead><tr><th class="l">SKU</th><th>Объём, л</th><th>Прайс, ₸</th><th>Штук за день</th></tr></thead>
       <tbody>
       {% for s in skus %}
         <tr><td class="l">{{ s.name }}</td><td>{{ s.vol }}</td><td>{{ fmt(s.price_kzt) }}</td>
         <td style="max-width:130px"><input class="num" type="number" step="1" min="0" name="sku_{{ s.name }}"
+          aria-label="{{ s.name }}, штук за день"
           value="{{ (edit_vals.get(s.name) or '')|int if edit_vals.get(s.name) else '' }}"></td></tr>
       {% endfor %}
       </tbody>
     </table>
-    <button class="btn sm" style="margin-top:10px">Сохранить отгрузку</button>
-    {% if edit_date %}<a class="btn sm ghost" href="{{ url_for('outlet', oid=o.id) }}" style="margin-left:8px">Новая дата</a>{% endif %}
+    </div>
+    <div class="rowflex" style="margin-top:14px">
+      <button class="btn sm">{{ ic('save', 14) }}Сохранить отгрузку</button>
+      {% if edit_date %}<a class="btn sm ghost" href="{{ url_for('outlet', oid=o.id) }}">Новая дата</a>{% endif %}
+    </div>
   </form>
 </div>
 {% endif %}
 
-<h2>Журнал отгрузок ({{ jdays|length }})</h2>
-<div class="card" style="padding:12px">
+<h2>Журнал отгрузок <span class="muted">({{ jdays|length }})</span></h2>
+<div class="card pad-t">
 {% if jdays %}
+<div class="scroll">
 <table>
   <thead><tr><th class="l">Дата</th><th>Волна</th><th>Бут. (экв.)</th><th class="l">SKU</th>{% if team|length > 1 %}<th class="l">Внёс</th>{% endif %}<th></th></tr></thead>
   <tbody>
@@ -95,18 +105,26 @@
       {% if team|length > 1 %}<td class="l muted">{{ d.by or '—' }}</td>{% endif %}
       <td>
         {% if not (d.closed and can_edit) %}
-          <a class="btn sm ghost" href="{{ url_for('outlet', oid=o.id, date=d.date) }}">изменить</a>
-          <form method="post" action="{{ url_for('delete_day', oid=o.id) }}" style="display:inline"
-                onsubmit="return confirm('Удалить отгрузку за {{ d.date }}?')">
-            <input type="hidden" name="date" value="{{ d.date }}">
-            <button class="btn sm danger">×</button>
-          </form>
+          <div class="rowflex" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap">
+            <a class="btn sm ghost" href="{{ url_for('outlet', oid=o.id, date=d.date) }}">{{ ic('pencil', 13) }}изменить</a>
+            <form method="post" action="{{ url_for('delete_day', oid=o.id) }}" style="display:inline"
+                  onsubmit="return confirm('Удалить отгрузку за {{ d.date }}?')">
+              <input type="hidden" name="date" value="{{ d.date }}">
+              <button class="btn sm danger" aria-label="Удалить отгрузку за {{ d.date }}">{{ ic('trash', 13) }}</button>
+            </form>
+          </div>
         {% else %}<span class="muted">закрыт</span>{% endif %}
       </td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
-{% else %}<p class="muted center">Пока нет внесённых отгрузок. Добавьте первую выше.</p>{% endif %}
+</div>
+{% else %}
+<div class="empty">{{ ic('inbox', 34) }}
+  <b>Пока нет внесённых отгрузок</b>
+  <span>Добавьте первый день в форме выше — сумма пересчитается сразу.</span>
+</div>
+{% endif %}
 </div>
 {% endblock %}

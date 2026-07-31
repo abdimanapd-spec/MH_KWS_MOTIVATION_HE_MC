@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_icons.html' import ic %}
 {% block body %}
 {% set earned = all_rows|sum(attribute='earned') %}
 {% set potmax = all_rows|sum(attribute='pot110') %}
@@ -17,9 +18,20 @@
   </div>
 </div>
 
+{% if not all_rows %}
+<div class="card">
+  <div class="empty">{{ ic('inbox', 34) }}
+    <b>За вами пока не закреплено ни одной точки</b>
+    <span>Напишите администратору программы — он откроет доступ, и точки появятся здесь.</span>
+    <a class="btn sm ghost" href="{{ url_for('help_page') }}">{{ ic('book') }}Открыть инструкцию</a>
+  </div>
+</div>
+{% endif %}
+
 {% for sec, rows in sections %}
-<h2>{{ '🔗 СЕТИ · центральный план' if sec=='СЕТИ' else sec }}</h2>
-<div class="card" style="padding:12px">
+<h2>{% if sec=='СЕТИ' %}{{ ic('link', 17) }}СЕТИ · центральный план{% else %}{{ sec }}{% endif %}</h2>
+<div class="card pad-t">
+<div class="scroll">
 <table class="money">
   <thead><tr>
     <th class="l">Точка / сеть</th><th>Марка</th><th>План,<br>бут.</th>
@@ -31,7 +43,7 @@
   <tbody>
   {% for r in rows %}
     <tr>
-      <td class="l"><b>{{ r.o.name }}</b>{% if r.plan.rebased %} <span class="star" title="план поднят по собственному тренду точки">★</span>{% endif %}{% if co.get(r.o.id) %} <span class="chip" title="точку ведёте вместе с: {{ co[r.o.id] }}">👥 вместе с {{ co[r.o.id] }}</span>{% endif %}
+      <td class="l"><b>{{ r.o.name }}</b>{% if r.plan.rebased %} <span class="star" title="план поднят по собственному тренду точки">{{ ic('star', 13) }}</span>{% endif %}{% if co.get(r.o.id) %} <span class="chip open" title="точку ведёте вместе с: {{ co[r.o.id] }}">{{ ic('users', 12) }}вместе с {{ co[r.o.id] }}</span>{% endif %}
         <br><span class="muted">{{ r.o.city }} · {{ r.o.channel }}</span></td>
       <td class="center"><span class="tag {{ 'hy' if r.o.brand=='HY' else 'mc' }}">{{ r.o.brand }}</span></td>
       <td>{{ r.plan.target }}</td>
@@ -42,7 +54,7 @@
             <div class="gap">до {{ c.gap.next }}% — ещё {{ c.gap.pp }} п.п.<span>это {{ c.gap.bottles }} бут.</span>
               {% if c.gap.money %}<b>+{{ fmt(c.gap.money) }} ₸</b>{% endif %}</div>
           {% else %}
-            <div class="gap done">✓ максимум взят<b>{{ fmt(c.total) }} ₸</b></div>
+            <div class="gap done">{{ ic('check', 13) }}максимум взят<b>{{ fmt(c.total) }} ₸</b></div>
           {% endif %}
         </td>
       {% endfor %}
@@ -50,7 +62,7 @@
         <span class="s">{{ (r.pot_ach*100)|round(0,'floor')|int }}% от максимума</span></td>
       <td class="mny gold">{{ fmt(r.pot110) }}
         <span class="s">осталось {{ fmt(r.left) }}</span></td>
-      <td><a class="btn sm" href="{{ url_for('outlet', oid=r.o.id) }}">Внести отгрузку</a></td>
+      <td><a class="btn sm" href="{{ url_for('outlet', oid=r.o.id) }}">{{ ic('plus', 14) }}Внести отгрузку</a></td>
     </tr>
   {% endfor %}
   </tbody>
@@ -69,15 +81,16 @@
   </tr></tfoot>{% endif %}
 </table>
 </div>
+</div>
 {% endfor %}
 
 <div class="note">
 <p><b>Можно заработать</b> — приз + командный бонус по этой точке при выполнении 110 %. Это те же цифры, что в вашем письме и в Excel-файле программы.</p>
 <p><b>До 90 / 100 / 110 %</b> — ближайший порог по волне и что он даёт деньгами: ниже 90 % выплаты нет вообще, на 90 % включается пониженная ставка, на 100 % — базовая, на 110 % — максимальная. Сверх 110 % не начисляется.</p>
 {% if all_rows|selectattr('plan.rebased')|list %}
-<p><span class="star">★</span> — точкам, которые уже росли быстрее базы, план поднят по их собственному тренду, а потолок приза остался на базовом уровне. Поэтому у них шаг со 100 % на 110 % даёт мало или ничего — рабочая цель по таким точкам это <b>100 %</b>.</p>
+<p><span class="star">{{ ic('star', 12) }}</span> — точкам, которые уже росли быстрее базы, план поднят по их собственному тренду, а потолок приза остался на базовом уровне. Поэтому у них шаг со 100 % на 110 % даёт мало или ничего — рабочая цель по таким точкам это <b>100 %</b>.</p>
 {% endif %}
 <p>Суммы считаются только по верифицированным отгрузкам дистрибьютора и обновляются сразу после того, как вы внесли день.</p>
-<p>Полные правила программы — шкала, волны, даты выплат, пример расчёта — на странице <a href="{{ url_for('help_page') }}"><b>📖 Инструкция</b></a> (она же в верхнем меню, доступна всегда).</p>
+<p>Полные правила программы — шкала, волны, даты выплат, пример расчёта — на странице <a href="{{ url_for('help_page') }}"><b>Инструкция</b></a> (она же в верхнем меню, доступна всегда).</p>
 </div>
 {% endblock %}

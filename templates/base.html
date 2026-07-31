@@ -3,35 +3,60 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0D1F3C">
 <title>{% block title %}Мотивационная программа 2026{% endblock %}</title>
+<script>(function(){try{var t=localStorage.getItem('mh-theme');
+if(t!=='dark'&&t!=='light'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}
+document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+{% from '_icons.html' import ic %}
+{% set ep = request.endpoint %}
 <body>
 {% if user %}
+<a class="skip" href="#main">Перейти к содержимому</a>
 <header class="top">
   <div class="wrap">
-    <div class="brand">🍾 Мотивационная программа 2026 · Hennessy &amp; Moёt</div>
-    <nav>
+    <div class="brand">{{ ic('bottle', 20) }}<span>Мотивационная программа 2026 · Hennessy &amp; Moёt</span></div>
+    <nav aria-label="Основная навигация">
       {% if user.role == 'admin' %}
-        <a href="{{ url_for('admin') }}">Дашборд</a>
-        <a href="{{ url_for('leaderboard') }}">Рейтинг</a>
-        <a href="{{ url_for('users') }}">Пользователи</a>
+        <a href="{{ url_for('admin') }}" class="{{ 'active' if ep in ['admin','outlet'] }}">{{ ic('grid') }}Дашборд</a>
+        <a href="{{ url_for('leaderboard') }}" class="{{ 'active' if ep == 'leaderboard' }}">{{ ic('trophy') }}Рейтинг</a>
+        <a href="{{ url_for('users') }}" class="{{ 'active' if ep in ['users','user_outlets'] }}">{{ ic('users') }}Пользователи</a>
       {% else %}
-        <a href="{{ url_for('dashboard') }}">Мои точки</a>
-        <a href="{{ url_for('leaderboard') }}">Рейтинг</a>
+        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if ep in ['dashboard','outlet'] }}">{{ ic('pin') }}Мои точки</a>
+        <a href="{{ url_for('leaderboard') }}" class="{{ 'active' if ep == 'leaderboard' }}">{{ ic('trophy') }}Рейтинг</a>
       {% endif %}
-      <a href="{{ url_for('help_page') }}" class="nav-help">📖 Инструкция</a>
-      <a href="{{ url_for('logout') }}">Выйти ({{ user.name }})</a>
+      <a href="{{ url_for('help_page') }}" class="nav-help {{ 'active' if ep == 'help_page' }}">{{ ic('book') }}Инструкция</a>
+      <a href="{{ url_for('logout') }}" class="nav-out" title="Выйти ({{ user.name }})">{{ ic('logout') }}<span class="navtxt">Выйти ({{ user.name }})</span><span class="navshort">Выйти</span></a>
     </nav>
+    <button type="button" id="themeToggle" class="tgl" aria-label="Переключить тему">{{ ic('sun', 17, 'ic-sun') }}{{ ic('moon', 17, 'ic-moon') }}</button>
   </div>
 </header>
 {% endif %}
-<div class="wrap">
+<div class="wrap" id="main">
   {% with msgs = get_flashed_messages() %}
-    {% for m in msgs %}<div class="flash">{{ m }}</div>{% endfor %}
+    {% for m in msgs %}<div class="flash">{{ ic('alert', 17) }}<span>{{ m }}</span></div>{% endfor %}
   {% endwith %}
   {% block body %}{% endblock %}
   <p class="muted center" style="margin:40px 0 20px">Выплаты только по верифицированным продажам (деплешны дистрибьютора). Суммы в тенге.</p>
 </div>
+<script>
+(function(){
+  var b=document.getElementById('themeToggle'); if(!b){return;}
+  function sync(){
+    var dark=document.documentElement.getAttribute('data-theme')==='dark';
+    var t=dark?'Включить светлую тему':'Включить тёмную тему';
+    b.setAttribute('aria-label',t); b.setAttribute('title',t);
+  }
+  sync();
+  b.addEventListener('click',function(){
+    var next=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme',next);
+    try{localStorage.setItem('mh-theme',next);}catch(e){}
+    sync();
+  });
+})();
+</script>
 </body>
 </html>

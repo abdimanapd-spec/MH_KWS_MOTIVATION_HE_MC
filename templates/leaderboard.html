@@ -1,40 +1,47 @@
 {% extends 'base.html' %}
+{% from '_icons.html' import ic %}
+{% block title %}Рейтинг · Мотивационная программа 2026{% endblock %}
 {% block body %}
-<h1>🏆 Рейтинг</h1>
+<h1>Рейтинг</h1>
 <p class="sub">Ежемесячные подарки до 15 000 ₸: самой растущей точке и самой аккуратной команде по заполнению.</p>
 <div class="card">
-  <form method="get" style="margin-bottom:12px">
-    <label class="muted">Месяц: </label>
-    <select name="month" onchange="this.form.submit()" style="padding:6px;border-radius:7px;border:1px solid var(--powder)">
+  <form method="get" style="margin-bottom:14px">
+    <label class="muted" for="mn">Месяц: </label>
+    <select id="mn" name="month" onchange="this.form.submit()">
       {% for m in MONTHS %}<option value="{{ m }}" {{ 'selected' if m==month }}>{{ MONTH_RU[m] }}</option>{% endfor %}
     </select>
   </form>
   <div class="rowflex" style="align-items:flex-start;gap:30px">
     <div style="flex:1;min-width:280px">
-      <h2 style="margin-top:0;font-size:15px">Самые растущие точки · {{ MONTH_RU[month] }}</h2>
+      <h2 style="margin-top:0;font-size:15px">{{ ic('trophy', 15) }}Самые растущие точки · {{ MONTH_RU[month] }}</h2>
+      <div class="scroll">
       <table>
         <thead><tr><th></th><th class="l">Точка</th><th>% месяца</th></tr></thead>
         <tbody>
         {% for r in lead.growing %}
-          <tr><td class="center medal">{{ ['🥇','🥈','🥉'][loop.index0] if loop.index0<3 else loop.index }}</td>
+          <tr><td class="center"><span class="medal {{ ['m1','m2','m3'][loop.index0] if loop.index0<3 else '' }}">{{ loop.index }}</span></td>
           <td class="l">{{ r.o.name }} <span class="muted">· {{ r.o.city }}</span></td>
           <td>{{ (r.months[month].ach*100)|round|int }}%</td></tr>
         {% endfor %}
         {% if not lead.growing %}<tr><td colspan="3" class="muted center">Нет отгрузок за {{ MONTH_RU[month] }}</td></tr>{% endif %}
         </tbody>
       </table>
+      </div>
     </div>
     <div style="flex:1;min-width:280px">
-      <h2 style="margin-top:0;font-size:15px">Команды по заполнению · {{ MONTH_RU[month] }}</h2>
+      <h2 style="margin-top:0;font-size:15px">{{ ic('users', 15) }}Команды по заполнению · {{ MONTH_RU[month] }}</h2>
+      <div class="scroll">
       <table>
         <thead><tr><th></th><th class="l">Команда</th><th>Точек с фактом</th></tr></thead>
         <tbody>
         {% for m in lead.managers %}
-          <tr><td class="center medal">{{ ['🥇','🥈','🥉'][loop.index0] if loop.index0<3 else loop.index }}</td>
+          <tr><td class="center"><span class="medal {{ ['m1','m2','m3'][loop.index0] if loop.index0<3 else '' }}">{{ loop.index }}</span></td>
           <td class="l">{{ m.team }}</td><td>{{ m.filled }}/{{ m.n }}</td></tr>
         {% endfor %}
+        {% if not lead.managers %}<tr><td colspan="3" class="muted center">Нет данных за {{ MONTH_RU[month] }}</td></tr>{% endif %}
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 </div>

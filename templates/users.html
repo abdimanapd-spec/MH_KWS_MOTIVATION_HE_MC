@@ -1,10 +1,12 @@
 {% extends 'base.html' %}
+{% from '_icons.html' import ic %}
+{% block title %}Пользователи · Мотивационная программа 2026{% endblock %}
 {% block body %}
 <h1>Пользователи</h1>
 <p class="sub">Персональный логин для каждого менеджера. У каждой точки один ответственный — по нему она идёт в командный зачёт, — но доступ к ней можно открыть и другим: поимённо или сразу всей командой (супервайзер).</p>
 
 {% if new_pw %}
-<div class="card" style="border-color:#b98d3a;background:#fffaf0">
+<div class="card warm">
   <b>Передайте менеджеру доступ:</b><br>
   логин <code>{{ new_pw.username }}</code> · пароль <code>{{ new_pw.password }}</code>
   <p class="muted" style="margin-bottom:0">Пароль показывается один раз — в базе он хранится только в зашифрованном виде.</p>
@@ -14,25 +16,26 @@
 <div class="card">
   <h2 style="margin-top:0">Добавить менеджера</h2>
   <form method="post" action="{{ url_for('user_add') }}">
-    <div class="rowflex" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div><div class="muted">Имя и фамилия</div>
-        <input name="name" required placeholder="Айгерим Сатыбалдиева" style="min-width:220px"></div>
-      <div><div class="muted">Логин</div>
-        <input name="username" required placeholder="aigerim" style="min-width:150px"></div>
-      <div><div class="muted">Команда</div>
-        <select name="team" style="padding:8px;border-radius:7px;border:1px solid var(--powder)">
+    <div class="rowflex" style="gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field"><label class="muted" for="f-name">Имя и фамилия</label>
+        <input id="f-name" name="name" required placeholder="Айгерим Сатыбалдиева" style="min-width:220px"></div>
+      <div class="field"><label class="muted" for="f-user">Логин</label>
+        <input id="f-user" name="username" required placeholder="aigerim" style="min-width:150px"></div>
+      <div class="field"><label class="muted" for="f-team">Команда</label>
+        <select id="f-team" name="team">
           <option value="">— без команды —</option>
           {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
         </select></div>
-      <div><div class="muted">Пароль</div>
-        <input name="password" placeholder="если пусто: логин-26" style="min-width:170px"></div>
-      <button class="btn sm">Создать и выбрать точки</button>
+      <div class="field"><label class="muted" for="f-pw">Пароль</label>
+        <input id="f-pw" name="password" placeholder="если пусто: логин-26" style="min-width:170px"></div>
+      <button class="btn sm">{{ ic('plus', 14) }}Создать и выбрать точки</button>
     </div>
   </form>
 </div>
 
-<h2>Все пользователи <span class="muted" style="font-size:13px">(точек без владельца: {{ free }})</span></h2>
-<div class="card" style="padding:12px">
+<h2>Все пользователи <span class="muted">(точек без владельца: {{ free }})</span></h2>
+<div class="card pad-t">
+<div class="scroll">
 <table>
   <thead><tr><th class="l">Имя</th><th class="l">Логин</th><th class="l">Роль / команда</th><th>Точек</th><th class="l">Новый пароль</th><th></th></tr></thead>
   <tbody>
@@ -41,27 +44,30 @@
       <td class="l"><b>{{ u.name }}</b></td>
       <td class="l"><code>{{ u.username }}</code></td>
       <td class="l">{% if u.role=='admin' %}<span class="tag">админ</span>{% else %}{{ u.team or '—' }}{% endif %}
-          {% if sups.get(u.id) %}<div class="muted" style="font-size:11px">🛡 супервайзер: {{ sups[u.id]|join(', ') }}</div>{% endif %}</td>
+          {% if sups.get(u.id) %}<div class="muted" style="font-size:11px">{{ ic('shield', 12) }} супервайзер: {{ sups[u.id]|join(', ') }}</div>{% endif %}</td>
       <td>{{ cnt.get(u.id, 0) + shared.get(u.id, 0) }}{% if shared.get(u.id) %}<div class="muted" style="font-size:11px">из них {{ shared[u.id] }} общие</div>{% endif %}</td>
       <td class="l">
         <form method="post" action="{{ url_for('user_password', uid=u.id) }}" style="display:flex;gap:6px">
-          <input name="password" placeholder="новый пароль" style="width:140px">
+          <input name="password" placeholder="новый пароль" aria-label="Новый пароль для {{ u.name }}" style="width:140px">
           <button class="btn sm ghost">задать</button>
         </form>
       </td>
       <td>
         {% if u.role!='admin' %}
-        <a class="btn sm ghost" href="{{ url_for('user_outlets', uid=u.id) }}">Точки</a>
-        <form method="post" action="{{ url_for('user_delete', uid=u.id) }}" style="display:inline"
-              onsubmit="return confirm('Удалить пользователя {{ u.name }}? Его точки останутся без владельца.')">
-          <button class="btn sm danger">×</button>
-        </form>
+        <div class="rowflex" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap">
+          <a class="btn sm ghost" href="{{ url_for('user_outlets', uid=u.id) }}">{{ ic('pin', 13) }}Точки</a>
+          <form method="post" action="{{ url_for('user_delete', uid=u.id) }}" style="display:inline"
+                onsubmit="return confirm('Удалить пользователя {{ u.name }}? Его точки останутся без владельца.')">
+            <button class="btn sm danger" aria-label="Удалить пользователя {{ u.name }}">{{ ic('trash', 13) }}</button>
+          </form>
+        </div>
         {% endif %}
       </td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 </div>
 <p class="muted">Отгрузки, внесённые удалённым менеджером, сохраняются — удаляется только доступ.</p>
 
@@ -74,11 +80,11 @@
     это независимая страховка от любых проблем на стороне хостинга.
   </p>
   <div class="rowflex" style="gap:14px;align-items:center;flex-wrap:wrap">
-    <a class="btn sm" href="{{ url_for('backup') }}">↓ Скачать копию</a>
+    <a class="btn sm" href="{{ url_for('backup') }}">{{ ic('download', 14) }}Скачать копию</a>
     <form method="post" action="{{ url_for('restore') }}" enctype="multipart/form-data"
           class="rowflex" style="gap:8px;align-items:center;margin:0">
-      <input type="file" name="file" accept=".json,application/json" required>
-      <button class="btn sm ghost">↑ Восстановить из копии</button>
+      <input type="file" name="file" accept=".json,application/json" aria-label="Файл резервной копии" required style="width:auto">
+      <button class="btn sm ghost">{{ ic('upload', 14) }}Восстановить из копии</button>
     </form>
   </div>
   <p class="muted" style="margin-bottom:0">
@@ -86,13 +92,13 @@
   </p>
 </div>
 
-<div class="card" style="border-color:{{ '#3a7d5a' if config.DB_PERSISTENT else '#b23b3b' }}">
-  <b>Хранилище данных: {{ config.DB_LABEL }}</b>
+<div class="card {{ 'ok' if config.DB_PERSISTENT else 'bad' }}">
+  <b>{{ ic('db', 15) }} Хранилище данных: {{ config.DB_LABEL }}</b>
   <p class="muted" style="margin-bottom:0">
   {% if config.DB_PERSISTENT %}
     Данные лежат в отдельной базе и переживают любое обновление сайта.
   {% else %}
-    ⚠️ Временное хранилище: данные пропадут при следующем обновлении сайта. Так и должно быть только на локальном компьютере.
+    {{ ic('alert', 13) }} Временное хранилище: данные пропадут при следующем обновлении сайта. Так и должно быть только на локальном компьютере.
   {% endif %}
   </p>
 </div>

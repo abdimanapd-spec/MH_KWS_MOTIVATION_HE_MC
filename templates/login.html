@@ -1,16 +1,21 @@
 {% extends 'base.html' %}
+{% from '_icons.html' import ic %}
+{% block title %}Вход · Мотивационная программа 2026{% endblock %}
 {% block body %}
 <div class="loginbox">
   <div class="card">
-    <div class="center" style="font-size:34px">🍾</div>
-    <h1 class="center" style="margin-top:4px">Вход</h1>
-    <p class="sub center">Мотивационная программа 2026</p>
+    <div class="center">{{ ic('bottle', 36) }}</div>
+    <h1 class="center" style="margin:6px 0 2px">Вход</h1>
+    <p class="sub center" style="margin-bottom:6px">Мотивационная программа 2026</p>
     <form method="post">
-      <p><label class="muted">Логин</label><input type="text" name="username" autofocus
-             autocapitalize="none" autocorrect="off" autocomplete="username" spellcheck="false"></p>
-      <p><label class="muted">Пароль</label><input type="password" name="password"></p>
-      <button class="btn" style="width:100%;margin-top:8px">Войти</button>
+      <div class="field"><label class="muted" for="username">Логин</label>
+        <input id="username" type="text" name="username" autofocus
+               autocapitalize="none" autocorrect="off" autocomplete="username" spellcheck="false"></div>
+      <div class="field"><label class="muted" for="password">Пароль</label>
+        <input id="password" type="password" name="password" autocomplete="current-password"></div>
+      <button class="btn" style="width:100%;margin-top:14px">{{ ic('lock', 16) }}Войти</button>
     </form>
+    <p class="muted center" style="margin:16px 0 0">Логин и пароль выдаёт администратор программы.</p>
   </div>
 </div>
 {% endblock %}

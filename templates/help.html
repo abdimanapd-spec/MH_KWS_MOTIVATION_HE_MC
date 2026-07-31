@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_icons.html' import ic %}
 {% block title %}Инструкция · Мотивационная программа 2026{% endblock %}
 {% macro n(x) %}{% if x|round(0) == x %}{{ x|int }}{% else %}{{ x|string|replace('.',',') }}{% endif %}{% endmacro %}
 {% macro pct(x) %}{{ n((x*100)|round(1)) }}{% endmacro %}
@@ -14,7 +15,7 @@
   <div><span class="l">Заработано</span><b>{{ fmt(my.earned) }} ₸</b></div>
   <div><span class="l">Можно заработать</span><b class="g">{{ fmt(my.pot110) }} ₸</b></div>
   <div><span class="l">Сейчас идёт</span><b>волна {{ cur_wave }} · {{ wavep['w' + cur_wave|string] }}</b></div>
-  <a class="btn sm ghost" href="{{ url_for('dashboard') }}">Мои точки →</a>
+  <a class="btn sm ghost" href="{{ url_for('dashboard') }}">Мои точки {{ ic('fwd', 14) }}</a>
 </div>
 {% endif %}
 
@@ -163,18 +164,18 @@
 <!-- 6 -->
 <div class="hsec" id="s6">
   <h2><span class="num">6</span> Обозначения и правила</h2>
-  <div class="hrow"><div class="k"><span class="star">★</span> у названия точки</div><div class="v">
+  <div class="hrow"><div class="k"><span class="star">{{ ic('star', 13) }}</span> у названия точки</div><div class="v">
     Точка уже растёт быстрее рынка — план ей поставлен по её собственному тренду (+15 %), а потолок приза
     остался на базовом уровне. Поэтому шаг со 100 % на 110 % у таких точек даёт мало или ничего:
     <b>рабочая цель по ним — 100 %</b>. В Excel-файле этот же знак обозначен как ‡.
-    {% if my %}Ваших точек с&nbsp;★: <b>{{ my.rebased }}</b>.{% else %}Всего по программе точек с&nbsp;★: {{ counts.rebased }}.{% endif %}</div></div>
+    {% if my %}Ваших таких точек: <b>{{ my.rebased }}</b>.{% else %}Всего таких точек по программе: {{ counts.rebased }}.{% endif %}</div></div>
   <div class="hrow"><div class="k">Сети</div><div class="v">
     Один план и один приз на всю сеть — распределение внутри сети решает сама сеть.
     {% if dc %}У {{ dc|join(' и ') }} план стоит на уровне распределительного центра (РЦ).{% endif %}
     {% if my and my.chains %}Ваших сетевых планов: <b>{{ my.chains }}</b>.{% endif %}</div></div>
-  <div class="hrow"><div class="k">👥 Общий доступ</div><div class="v">
+  <div class="hrow"><div class="k">{{ ic('users', 14) }} Общий доступ</div><div class="v">
     Если точку ведут несколько человек, в её карточке сверху написано, кто именно, и кто из них
-    ответственный. В «Мои точки» такие строки помечены значком <span class="tag">👥</span>.
+    ответственный. В «Мои точки» такие строки помечены меткой <span class="chip open">{{ ic('users', 12) }}вместе</span>.
     Отгрузку может внести любой из них — и любой может её поправить; в журнале рядом с каждой строкой
     указано, кто вносил последним.</div></div>
   <div class="hrow"><div class="k">Потолок 110 %</div><div class="v">
@@ -199,7 +200,7 @@
   <div class="hrow"><div class="k">Ошибся в цифре?</div><div class="v">
     Пока месяц не закрыт — «изменить» или «×» в журнале отгрузок на странице точки. После закрытия — только через Дидара.</div></div>
   <div class="hrow"><div class="k">Почему 100 % и 110 % дают почти одно и то же?</div><div class="v">
-    Это точка со знаком <span class="star">★</span> — у неё потолок приза зафиксирован на базовом уровне. Цельтесь в 100 %.</div></div>
+    Это точка со знаком <span class="star">{{ ic('star', 13) }}</span> — у неё потолок приза зафиксирован на базовом уровне. Цельтесь в 100 %.</div></div>
   <div class="hrow"><div class="k">Точка продаёт дорогие SKU — это учитывается?</div><div class="v">
     Да. Оборот считается по фактическому миксу, поэтому XO и VSOP приносят больше, чем VS, при том же количестве бутылок.</div></div>
   <div class="hrow"><div class="k">Не сходятся цифры?</div><div class="v">
@@ -207,6 +208,6 @@
 </div>
 
 <p class="muted center" style="margin-top:18px">
-  {% if my %}<a class="btn sm" href="{{ url_for('dashboard') }}">← Вернуться к «Мои точки»</a>{% else %}<a class="btn sm" href="{{ url_for('admin') }}">← Вернуться на дашборд</a>{% endif %}
+  {% if my %}<a class="btn sm" href="{{ url_for('dashboard') }}">{{ ic('back', 14) }}Вернуться к «Мои точки»</a>{% else %}<a class="btn sm" href="{{ url_for('admin') }}">{{ ic('back', 14) }}Вернуться на дашборд</a>{% endif %}
 </p>
 {% endblock %}
