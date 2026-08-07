@@ -30,7 +30,11 @@
     <div class="kpi {{ 'alt' if w==2 }}">
       <div class="l">Волна {{ w }} · {{ wavep['w'+w|string] }}</div>
       <div class="v">{{ pct }}%</div>
-      <div class="kmini">план {{ c.target }} · факт {{ c.bottles }} бут · приз {{ fmt(c.total) }} ₸</div>
+      <div class="kmini">план {{ c.target }} · факт {{ c.bottles }} бут</div>
+      <div class="wsplit">
+        <span>начислено: точке <b>{{ fmt(c.prize) }} ₸</b> · команде <b>{{ fmt(c.team) }} ₸</b></span>
+        <span>потолок волны при 110 %: точке <b>{{ fmt(c.max110.prize) }} ₸</b> · команде <b>{{ fmt(c.max110.team) }} ₸</b></span>
+      </div>
       {% if c.gap.next %}
         <div class="kgap">до {{ c.gap.next }}%: ещё {{ c.gap.pp }} п.п. · {{ c.gap.bottles }} бут. → <b>+{{ fmt(c.gap.money) }} ₸</b></div>
       {% else %}

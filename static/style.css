@@ -218,6 +218,11 @@ h2 .ic{color:var(--accent)}
   padding:6px 9px;margin-top:8px;line-height:1.45}
 .kgap b{color:#FFD97A}
 .kgap.ok{color:#9DE8BC}
+/* разбивка выплаты волны: сколько идёт точке и сколько команде */
+.wsplit{font-size:11px;color:var(--kpi-label);line-height:1.5;margin-top:6px;
+  border-top:1px solid rgba(255,255,255,.18);padding-top:6px}
+.wsplit span{display:block}
+.wsplit b{color:#fff;font-variant-numeric:tabular-nums}
 
 /* ---------- 7. Таблицы ---------- */
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r)}
@@ -272,6 +277,11 @@ table.money tfoot td{background:var(--surface-2);border-top:2px solid var(--bord
 .gap b{display:block;color:var(--gold-ink);font-size:12.5px;margin-top:2px;font-variant-numeric:tabular-nums}
 .gap.done{color:var(--green-ink);display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .gap.done b{color:var(--green-ink);display:inline-block;width:100%}
+/* потолок волны в разбивке «точке / команде» — под индикатором выполнения */
+.wmax{font-size:10.5px;color:var(--muted-ink);line-height:1.45;margin-top:6px;
+  border-top:1px dashed var(--border);padding-top:5px;white-space:nowrap}
+.wmax span{display:block}
+.wmax b{color:var(--text);font-variant-numeric:tabular-nums}
 .star{color:var(--gold)}
 .mny{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
 .mny.gold{color:var(--gold-ink)}

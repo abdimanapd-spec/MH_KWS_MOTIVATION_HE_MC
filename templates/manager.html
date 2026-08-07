@@ -56,6 +56,10 @@
           {% else %}
             <div class="gap done">{{ ic('check', 13) }}максимум взят<b>{{ fmt(c.total) }} ₸</b></div>
           {% endif %}
+          <div class="wmax" title="потолок этой волны при выполнении 110 %">
+            <span>точке до <b>{{ fmt(c.max110.prize) }} ₸</b></span>
+            <span>команде до <b>{{ fmt(c.max110.team) }} ₸</b></span>
+          </div>
         </td>
       {% endfor %}
       <td class="mny">{{ fmt(r.earned) }}
@@ -72,6 +76,10 @@
     {% for w in [1,2,3] %}
       <td class="{{ 'now' if w==cur_wave }}">
         <div class="gap">до ближайших порогов<b>+{{ fmt(rows|sum(attribute='waves.' + w|string + '.gap.money')) }} ₸</b></div>
+        <div class="wmax" title="потолок этой волны при выполнении 110 %">
+          <span>точкам до <b>{{ fmt(rows|sum(attribute='waves.' + w|string + '.max110.prize')) }} ₸</b></span>
+          <span>команде до <b>{{ fmt(rows|sum(attribute='waves.' + w|string + '.max110.team')) }} ₸</b></span>
+        </div>
       </td>
     {% endfor %}
     <td class="mny">{{ fmt(rows|sum(attribute='earned')) }}</td>

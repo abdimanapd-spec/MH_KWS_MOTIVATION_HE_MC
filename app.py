@@ -169,6 +169,15 @@ def closed_months():
 def is_chain(oid):
     return bool(P.PLAN_BY_ID[oid].get('is_chain'))
 
+def active_q():
+    """Точки, у которых есть план в program_data.json.
+
+    Выведенную из программы точку убираем из плана, но строку в базе и её
+    отгрузки НЕ удаляем — история и резервная копия остаются целыми. Такая
+    точка просто перестаёт показываться и считаться. Возвращает Query, к
+    которому можно доклеить свои фильтры."""
+    return Outlet.query.filter(Outlet.id.in_(list(P.PLAN_BY_ID)))
+
 def shared_ids(uid):
     return {a.outlet_id for a in OutletAccess.query.filter_by(user_id=uid).all()}
 
@@ -183,15 +192,15 @@ def supervisors_of(team):
 
 def my_outlets(u):
     """Точки человека: свои + открытые поимённо + все точки подшефных команд."""
-    rows = Outlet.query.filter_by(manager_id=u.id).all()
+    rows = active_q().filter_by(manager_id=u.id).all()
     have = {o.id for o in rows}
     extra = shared_ids(u.id) - have
     if extra:
-        rows += Outlet.query.filter(Outlet.id.in_(extra)).all()
+        rows += active_q().filter(Outlet.id.in_(extra)).all()
         have |= extra
     teams = sup_teams(u.id)
     if teams:
-        rows += [o for o in Outlet.query.filter(Outlet.team.in_(teams)).all()
+        rows += [o for o in active_q().filter(Outlet.team.in_(teams)).all()
                  if o.id not in have]
     return rows
 
@@ -243,6 +252,9 @@ def outlet_summary(o, emap=None):
         dates = [d for m in P.WAVE_MONTHS[w] for d in dates_in_month(emap, m)]
         c = P.compute_wave(plan, w, sum_units(emap, skus, dates))
         c['gap'] = P.wave_gap(plan, w, c)
+        # потолок волны в разбивке: сколько может получить сама точка и сколько команда
+        c['max110'] = P.wave_potential(plan, w, 1.1)
+        c['max100'] = P.wave_potential(plan, w, 1.0)
         waves[w] = c; earned += c['total']; total_bottles += c['bottles']
     months = {}
     for m in P.MONTHS:
@@ -334,6 +346,8 @@ def register_routes(app):
     def outlet(oid):
         o = Outlet.query.get_or_404(oid)
         u = current_user()
+        if o.id not in P.PLAN_BY_ID:
+            abort(404)          # точка выведена из программы
         if not can_access(u, o):
             abort(403)
         plan = P.PLAN_BY_ID[o.id]
@@ -377,6 +391,8 @@ def register_routes(app):
     def save_entry(oid):
         o = Outlet.query.get_or_404(oid)
         u = current_user()
+        if o.id not in P.PLAN_BY_ID:
+            abort(404)          # точка выведена из программы
         if not can_access(u, o):
             abort(403)
         date = request.form.get('date', '').strip()
@@ -405,6 +421,8 @@ def register_routes(app):
     def delete_day(oid):
         o = Outlet.query.get_or_404(oid)
         u = current_user()
+        if o.id not in P.PLAN_BY_ID:
+            abort(404)          # точка выведена из программы
         if not can_access(u, o):
             abort(403)
         date = request.form.get('date', '')
@@ -420,7 +438,7 @@ def register_routes(app):
     @app.route('/admin')
     @login_required('admin')
     def admin():
-        rows = [outlet_summary(o) for o in Outlet.query.all()]
+        rows = [outlet_summary(o) for o in active_q().all()]
         closed = sorted(closed_months())
         month = request.args.get('month') or last_active_month(rows)
         wave_tot = {1: 0, 2: 0, 3: 0}
@@ -459,7 +477,7 @@ def register_routes(app):
     @login_required('admin')
     def users():
         us = User.query.order_by(User.role.desc(), User.name).all()
-        outlets = Outlet.query.all()
+        outlets = active_q().all()
         cnt, own_ids, by_team = {}, {}, {}
         for o in outlets:
             cnt[o.manager_id] = cnt.get(o.manager_id, 0) + 1
@@ -475,7 +493,7 @@ def register_routes(app):
         for tl in sups.values():
             tl.sort()
         shared = {uid: len(s - own_ids.get(uid, set())) for uid, s in acc.items()}
-        free = Outlet.query.filter(Outlet.manager_id.is_(None)).count()
+        free = active_q().filter(Outlet.manager_id.is_(None)).count()
         return render_template('users.html', users=us, cnt=cnt, shared=shared,
                                sups=sups, free=free,
                                teams=list(TEAM_MANAGER.keys()),
@@ -517,7 +535,7 @@ def register_routes(app):
         if u.role == 'admin':
             flash('Админа удалить нельзя'); return redirect(url_for('users'))
         passed = 0
-        for o in Outlet.query.filter_by(manager_id=u.id).all():
+        for o in active_q().filter_by(manager_id=u.id).all():
             # если точку вёл ещё кто-то — ответственным становится он,
             # чтобы точка не осталась без владельца
             other = OutletAccess.query.filter(OutletAccess.outlet_id == o.id,
@@ -563,7 +581,7 @@ def register_routes(app):
                     OutletAccess.user_id != not_user).first()
 
             own = co = 0
-            for o in Outlet.query.all():
+            for o in active_q().all():
                 if o.id in keep:
                     take = (o.manager_id in (None, u.id) or o.id in lead)
                     if take and o.manager_id == u.id and has_lead \
@@ -616,7 +634,7 @@ def register_routes(app):
                      via_team=(o.team in sup and o.manager_id != u.id
                                and o.id not in mine),
                      team=outlet_team(o))
-                for o in Outlet.query.all()]
+                for o in active_q().all()]
         return render_template('user_outlets.html', u=u,
                                sections=group_sections(rows),
                                all_teams=list(TEAM_MANAGER.keys()), sup=sup)
@@ -760,7 +778,7 @@ def register_routes(app):
     @app.route('/leaderboard')
     @login_required()
     def leaderboard():
-        rows = [outlet_summary(o) for o in Outlet.query.all()]
+        rows = [outlet_summary(o) for o in active_q().all()]
         month = request.args.get('month') or last_active_month(rows)
         return render_template('leaderboard.html', lead=leaderboards(rows, month),
                                month=month)
