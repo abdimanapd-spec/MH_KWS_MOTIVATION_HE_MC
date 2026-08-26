@@ -41,7 +41,7 @@
    "w2": "Сентябрь-Октябрь",
    "w3": "Ноябрь-Декабрь"
   },
-  "n_plans": 37
+  "n_plans": 38
  },
  "plans": [
   {
@@ -783,6 +783,26 @@
    "prize110_kzt": 251440,
    "team110_kzt": 87920,
    "team": "Алматы ON"
+  },
+  {
+   "id": 41,
+   "brand": "MC",
+   "name": "Nino",
+   "city": "Astana",
+   "channel": "ON",
+   "is_chain": false,
+   "dc": false,
+   "rebased": false,
+   "manual": true,
+   "target": 114,
+   "w1": 20,
+   "w2": 21,
+   "w3": 73,
+   "prize90_kzt": 72800,
+   "prize100_kzt": 154560,
+   "prize110_kzt": 251440,
+   "team110_kzt": 87920,
+   "team": "Астана ON"
   }
  ],
  "skus": {
