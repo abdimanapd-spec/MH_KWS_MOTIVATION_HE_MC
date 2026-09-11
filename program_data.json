@@ -41,7 +41,7 @@
    "w2": "Сентябрь-Октябрь",
    "w3": "Ноябрь-Декабрь"
   },
-  "n_plans": 47
+  "n_plans": 48
  },
  "plans": [
   {
@@ -527,21 +527,21 @@
   {
    "id": 26,
    "brand": "HY",
-   "name": "Skif (chain)",
-   "city": "Almaty + Astana + Павлодар",
+   "name": "Skif (Алматы)",
+   "city": "Almaty",
    "channel": "OFF",
    "is_chain": true,
    "dc": false,
    "rebased": false,
-   "manual": false,
-   "target": 2101,
+   "manual": true,
+   "target": 962,
    "w1": 452,
-   "w2": 525,
-   "w3": 1124,
-   "prize90_kzt": 1219680,
-   "prize100_kzt": 2578800,
-   "prize110_kzt": 4182640,
-   "team110_kzt": 1766800,
+   "w2": 163,
+   "w3": 347,
+   "prize90_kzt": 558320,
+   "prize100_kzt": 1181040,
+   "prize110_kzt": 1915200,
+   "team110_kzt": 809200,
    "team": "Алматы OFF"
   },
   {
@@ -865,26 +865,6 @@
    "team": "Астана ON"
   },
   {
-   "id": 47,
-   "brand": "MC",
-   "name": "Матрешка",
-   "city": "Astana",
-   "channel": "ON",
-   "is_chain": false,
-   "dc": false,
-   "rebased": false,
-   "manual": true,
-   "target": 143,
-   "w1": 0,
-   "w2": 32,
-   "w3": 111,
-   "prize90_kzt": 91280,
-   "prize100_kzt": 194320,
-   "prize110_kzt": 315840,
-   "team110_kzt": 110320,
-   "team": "Астана ON"
-  },
-  {
    "id": 48,
    "brand": "MC",
    "name": "Дом приемов",
@@ -983,6 +963,46 @@
    "prize110_kzt": 138880,
    "team110_kzt": 48720,
    "team": "Астана OFF"
+  },
+  {
+   "id": 53,
+   "brand": "HY",
+   "name": "Skif (Астана)",
+   "city": "Astana",
+   "channel": "OFF",
+   "is_chain": true,
+   "dc": false,
+   "rebased": false,
+   "manual": true,
+   "target": 946,
+   "w1": 0,
+   "w2": 301,
+   "w3": 645,
+   "prize90_kzt": 549360,
+   "prize100_kzt": 1160880,
+   "prize110_kzt": 1883280,
+   "team110_kzt": 795200,
+   "team": "Астана OFF"
+  },
+  {
+   "id": 54,
+   "brand": "HY",
+   "name": "Skif (Павлодар)",
+   "city": "Павлодар",
+   "channel": "OFF",
+   "is_chain": true,
+   "dc": false,
+   "rebased": false,
+   "manual": true,
+   "target": 193,
+   "w1": 0,
+   "w2": 61,
+   "w3": 132,
+   "prize90_kzt": 112000,
+   "prize100_kzt": 236880,
+   "prize110_kzt": 384160,
+   "team110_kzt": 162400,
+   "team": "Регионы"
   }
  ],
  "skus": {
