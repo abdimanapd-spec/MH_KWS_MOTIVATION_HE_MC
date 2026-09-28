@@ -8,7 +8,7 @@ from collections import defaultdict
 from flask import (Flask, render_template, request, redirect, url_for, session,
                    flash, abort, jsonify, Response)
 from models import (db, User, Outlet, Entry, MonthClose, Setting,
-                    OutletAccess, TeamAccess)
+                    OutletAccess, TeamAccess, PlanRow, PlanLog)
 import program as P
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -72,10 +72,80 @@ def create_app():
     with app.app_context():
         db.create_all()
         app.secret_key = secret_key()
+        plans_bootstrap()
+        reload_plans()
         seed()
         sync_outlets()
+
+    @app.before_request
+    def fresh_plans():
+        # планы могли поменять в админке (в т.ч. в другом процессе) — подтягиваем
+        if request.endpoint != 'static':
+            s = db.session.get(Setting, 'plans_version')
+            if s and s.value != _PLANS_VER['v']:
+                reload_plans()
+
     register_routes(app)
     return app
+
+def money(n):
+    return f'{int(round(n)):,}'.replace(',', ' ')
+
+# ---------- планы: база вместо файла ----------
+_PLANS_VER = {'v': None}
+
+def plans_bootstrap():
+    """Первый запуск с редактором: переносим планы из program_data.json в базу.
+    Дальше источник правды — таблица plan; правки файла на сайт уже не влияют."""
+    if PlanRow.query.first():
+        return
+    for pl in P.PLANS:
+        db.session.add(PlanRow(id=pl['id'], data=json.dumps(pl, ensure_ascii=False), active=True))
+        db.session.add(PlanLog(plan_id=pl['id'], action='import',
+                               after=json.dumps(pl, ensure_ascii=False),
+                               note='Перенос из program_data.json'))
+    bump_plans_version()
+    db.session.commit()
+
+def reload_plans():
+    rows = PlanRow.query.filter_by(active=True).all()
+    P.load_plans([json.loads(r.data) for r in rows])
+    s = db.session.get(Setting, 'plans_version')
+    _PLANS_VER['v'] = s.value if s else None
+
+def bump_plans_version():
+    s = db.session.get(Setting, 'plans_version')
+    v = secrets.token_hex(6)
+    if s:
+        s.value = v
+    else:
+        db.session.add(Setting(key='plans_version', value=v))
+
+def all_plans():
+    """Все планы из базы, включая выведенные: [(plan_dict, active)]."""
+    return [(json.loads(r.data), r.active) for r in PlanRow.query.order_by(PlanRow.id).all()]
+
+def next_plan_id():
+    ids = [r.id for r in PlanRow.query.all()] + [o.id for o in Outlet.query.all()]
+    return (max(ids) if ids else 0) + 1   # выведенные id не переиспользуем — у них история
+
+def write_plan(plan, action, note='', before=None, active=None):
+    row = db.session.get(PlanRow, plan['id'])
+    if row is None:
+        row = PlanRow(id=plan['id'], data='{}', active=True)
+        db.session.add(row)
+    row.data = json.dumps(plan, ensure_ascii=False)
+    if active is not None:
+        row.active = active
+    u = current_user()
+    row.updated_at = datetime.utcnow(); row.updated_by = u.id if u else None
+    db.session.add(PlanLog(plan_id=plan['id'], user_id=u.id if u else None, action=action,
+                           before=json.dumps(before, ensure_ascii=False) if before else None,
+                           after=json.dumps(plan, ensure_ascii=False), note=note[:300]))
+    bump_plans_version()
+    db.session.commit()
+    reload_plans()
+    sync_outlets()
 
 # ---------- seed ----------
 TEAM_MANAGER = {
@@ -112,7 +182,7 @@ def seed():
         pass
 
 def sync_outlets():
-    """Подтягивает справочные поля точек из program_data.json на каждом старте.
+    """Подтягивает справочные поля точек из действующих планов (на старте и после правки в админке).
 
     seed() отрабатывает только на пустой базе, поэтому без этого правки в
     program_data.json (переименование, город, канал, новая точка) не доезжают
@@ -170,7 +240,7 @@ def is_chain(oid):
     return bool(P.PLAN_BY_ID[oid].get('is_chain'))
 
 def active_q():
-    """Точки, у которых есть план в program_data.json.
+    """Точки с действующим планом (таблица plan, active).
 
     Выведенную из программы точку убираем из плана, но строку в базе и её
     отгрузки НЕ удаляем — история и резервная копия остаются целыми. Такая
@@ -639,6 +709,172 @@ def register_routes(app):
                                sections=group_sections(rows),
                                all_teams=list(TEAM_MANAGER.keys()), sup=sup)
 
+    # ----- планы (только админ) -----
+    PLAN_FIELDS_MONEY = ('prize90_kzt', 'prize100_kzt', 'prize110_kzt', 'team110_kzt')
+
+    def plan_form_ctx(plan, is_new):
+        past = P.past_waves()
+        logs = [] if is_new else PlanLog.query.filter_by(plan_id=plan['id']).order_by(PlanLog.at.desc()).all()
+        hist = []
+        for lg in logs:
+            b = json.loads(lg.before) if lg.before else {}
+            a = json.loads(lg.after) if lg.after else {}
+            keys = ['name', 'city', 'channel', 'team', 'is_chain', 'w1', 'w2', 'w3', 'target', 'prize110_kzt', 'team110_kzt']
+            diff = [(k, b.get(k), a.get(k)) for k in keys if b and b.get(k) != a.get(k)]
+            hist.append(dict(at=lg.at, who=(lg.user.name if lg.user else 'система'),
+                             action=lg.action, note=lg.note, diff=diff))
+        return dict(plan=plan, is_new=is_new, past=past, teams=list(TEAM_MANAGER.keys()),
+                    hist=hist, wavep=P.WAVE_PERIODS)
+
+    def read_int(name, default=0):
+        raw = (request.form.get(name) or '').strip().replace(' ', '')
+        if raw == '':
+            return default
+        return int(float(raw))
+
+    def apply_plan_form(plan, is_new):
+        """Переносит поля формы в план. Возвращает текст ошибки или None."""
+        name = (request.form.get('name') or '').strip()
+        if not name:
+            return 'Укажите название точки'
+        team = request.form.get('team') or ''
+        if team not in TEAM_MANAGER:
+            return 'Выберите команду'
+        channel = request.form.get('channel')
+        if channel not in ('ON', 'OFF'):
+            return 'Выберите канал'
+        if is_new:
+            brand = request.form.get('brand')
+            if brand not in ('HY', 'MC'):
+                return 'Выберите бренд'
+            plan['brand'] = brand
+        plan.update(name=name, team=team, channel=channel,
+                    city=(request.form.get('city') or '').strip() or '—',
+                    is_chain=bool(request.form.get('is_chain')))
+        past = P.past_waves()
+        try:
+            for w in (1, 2, 3):
+                if w in past:          # прошедшая волна: план не меняем (у новой точки — ноль)
+                    plan[f'w{w}'] = 0 if is_new else plan.get(f'w{w}', 0)
+                else:
+                    v = read_int(f'w{w}', 0)
+                    if v < 0:
+                        return 'План волны не может быть отрицательным'
+                    plan[f'w{w}'] = v
+        except ValueError:
+            return 'План волны — целое число бутылок'
+        plan['target'] = plan['w1'] + plan['w2'] + plan['w3']
+        if plan['target'] <= 0:
+            return 'План за программу должен быть больше нуля'
+        if request.form.get('auto_prizes'):
+            plan.update(P.calc_prizes(plan['brand'], plan['target']))
+        else:
+            try:
+                for k in PLAN_FIELDS_MONEY:
+                    plan[k] = read_int(k, plan.get(k, 0))
+            except ValueError:
+                return 'Суммы призов — целые числа в тенге'
+        plan['manual'] = True
+        plan['rebased'] = False
+        plan.setdefault('dc', False)
+        return None
+
+    @app.route('/admin/plans')
+    @login_required('admin')
+    def plans():
+        rows = []
+        for pl, active in all_plans():
+            rows.append(dict(p=pl, active=active, section=P.section_of(pl)))
+        act = [r for r in rows if r['active']]
+        by = defaultdict(list)
+        for r in act:
+            by[r['section']].append(r)
+        sections = [(s, sorted(by[s], key=lambda r: (r['p']['name'], r['p']['brand'])))
+                    for s in P.SECTION_ORDER if by.get(s)]
+        inactive = [r for r in rows if not r['active']]
+        return render_template('plans.html', sections=sections, inactive=inactive,
+                               totals=P.program_totals(), past=P.past_waves(),
+                               wavep=P.WAVE_PERIODS)
+
+    @app.route('/admin/plans/new', methods=['GET', 'POST'])
+    @login_required('admin')
+    def plan_new():
+        plan = dict(id=None, brand='HY', name='', city='', channel='OFF', team='Алматы OFF',
+                    is_chain=False, dc=False, rebased=False, manual=True,
+                    w1=0, w2=0, w3=0, target=0,
+                    prize90_kzt=0, prize100_kzt=0, prize110_kzt=0, team110_kzt=0)
+        if request.method == 'POST':
+            err = apply_plan_form(plan, True)
+            if err:
+                flash(err)
+                return render_template('plan_edit.html', **plan_form_ctx(plan, True))
+            plan['id'] = next_plan_id()
+            write_plan(plan, 'create', request.form.get('note') or 'Новая точка', active=True)
+            flash(f'Точка «{plan["name"]}» добавлена (id {plan["id"]}): план {plan["target"]} бут., '
+                  f'приз при 110 % — {money(plan["prize110_kzt"])} ₸. Назначьте ответственного на странице «Пользователи».')
+            return redirect(url_for('plans'))
+        return render_template('plan_edit.html', **plan_form_ctx(plan, True))
+
+    @app.route('/admin/plans/<int:pid>', methods=['GET', 'POST'])
+    @login_required('admin')
+    def plan_edit(pid):
+        row = db.session.get(PlanRow, pid) or abort(404)
+        plan = json.loads(row.data)
+        if request.method == 'POST':
+            before = json.loads(row.data)
+            # закрытые волны: фиксируем их потолки ДО изменения призов,
+            # чтобы уже посчитанные выплаты не поменялись задним числом
+            fz = dict(plan.get('frozen_caps') or {})
+            for w in P.past_waves():
+                if str(w) not in fz:
+                    cp, ct = P.wave_caps(before, w)
+                    fz[str(w)] = {'prize': cp, 'team': ct}
+            err = apply_plan_form(plan, False)
+            if err:
+                flash(err)
+                return render_template('plan_edit.html', **plan_form_ctx(plan, False))
+            if fz:
+                plan['frozen_caps'] = fz
+            note = (request.form.get('note') or '').strip()
+            write_plan(plan, 'edit', note or 'Правка плана', before=before)
+            flash(f'План «{plan["name"]}» сохранён: {plan["target"]} бут. за программу, '
+                  f'приз при 110 % — {money(plan["prize110_kzt"])} ₸')
+            return redirect(url_for('plans'))
+        return render_template('plan_edit.html', **plan_form_ctx(plan, False))
+
+    @app.route('/admin/plans/<int:pid>/toggle', methods=['POST'])
+    @login_required('admin')
+    def plan_toggle(pid):
+        row = db.session.get(PlanRow, pid) or abort(404)
+        plan = json.loads(row.data)
+        to = not row.active
+        write_plan(plan, 'activate' if to else 'deactivate',
+                   request.form.get('note') or ('Возвращена в программу' if to else 'Выведена из программы'),
+                   before=plan, active=to)
+        flash(f'«{plan["name"]}» ' + ('снова в программе' if to else
+              'выведена из программы. Отгрузки и история сохранены — точку можно вернуть.'))
+        return redirect(url_for('plans'))
+
+    # ----- роли -----
+    @app.route('/admin/users/<int:uid>/role', methods=['POST'])
+    @login_required('admin')
+    def user_role(uid):
+        u = User.query.get_or_404(uid)
+        if u.role == 'admin':
+            if User.query.filter_by(role='admin').count() <= 1:
+                flash('Это единственный администратор — сначала назначьте другого')
+                return redirect(url_for('users'))
+            u.role = 'manager'
+            flash(f'«{u.name}» больше не администратор')
+        else:
+            u.role = 'admin'
+            flash(f'«{u.name}» теперь администратор: видит всю программу, закрывает месяцы, '
+                  f'ведёт пользователей и планы')
+        db.session.commit()
+        if u.id == current_user().id:
+            return redirect(url_for('index'))
+        return redirect(url_for('users'))
+
     # ----- резервная копия (только админ) -----
     @app.route('/admin/backup.json')
     @login_required('admin')
@@ -661,6 +897,8 @@ def register_routes(app):
             'entries': [dict(outlet=e.outlet_id, date=e.date, sku=e.sku, units=e.units)
                         for e in Entry.query.order_by(Entry.id).all()],
             'closed': sorted(m.month for m in MonthClose.query.all()),
+            'plans': [dict(id=r.id, active=r.active, data=json.loads(r.data))
+                      for r in PlanRow.query.order_by(PlanRow.id).all()],
         }
         fn = 'mh-tracker-' + datetime.utcnow().strftime('%Y-%m-%d-%H%M') + '.json'
         return Response(json.dumps(data, ensure_ascii=False, indent=1),
@@ -729,9 +967,24 @@ def register_routes(app):
         for m in data.get('closed', []):
             if m in P.MONTHS and not db.session.get(MonthClose, m):
                 db.session.add(MonthClose(month=m, closed_by=me))
+        new_p = 0
+        for row in data.get('plans', []):
+            pid = row.get('id')
+            if not pid or db.session.get(PlanRow, pid) or not isinstance(row.get('data'), dict):
+                continue
+            db.session.add(PlanRow(id=pid, data=json.dumps(row['data'], ensure_ascii=False),
+                                   active=bool(row.get('active', True))))
+            db.session.add(PlanLog(plan_id=pid, user_id=me, action='import',
+                                   after=json.dumps(row['data'], ensure_ascii=False),
+                                   note='Восстановлено из резервной копии'))
+            new_p += 1
+        if new_p:
+            bump_plans_version()
         db.session.commit()
+        if new_p:
+            reload_plans(); sync_outlets()
         flash(f'Из копии восстановлено: аккаунтов +{new_u}, привязок точек {linked}, '
-              f'отгрузок +{new_e}. Ничего не удалено.')
+              f'отгрузок +{new_e}, планов +{new_p}. Ничего не удалено.')
         return redirect(url_for('users'))
 
     # ----- инструкция (для всех) -----

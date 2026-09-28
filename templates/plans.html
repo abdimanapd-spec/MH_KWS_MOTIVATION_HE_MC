@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% from '_icons.html' import ic %}
+{% block title %}Планы · Мотивационная программа 2026{% endblock %}
+{% block body %}
+<div class="rowflex" style="justify-content:space-between;align-items:flex-end">
+  <div>
+    <h1>Планы точек</h1>
+    <p class="sub">Здесь меняются планы по волнам, добавляются и выводятся точки. Призы по умолчанию считаются автоматически по формуле программы. Каждое изменение записывается в журнал точки.</p>
+  </div>
+  <a class="btn" href="{{ url_for('plan_new') }}">{{ ic('plus', 15) }}Добавить точку</a>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="l">Точек в программе</div><div class="v">{{ totals.n }}</div></div>
+  <div class="kpi alt"><div class="l">Призы точкам при 110 %</div><div class="v">{{ fmt(totals.prize110) }} ₸</div></div>
+  <div class="kpi"><div class="l">Бонусы командам при 110 %</div><div class="v">{{ fmt(totals.team110) }} ₸</div></div>
+  <div class="kpi alt"><div class="l">Максимальный фонд</div><div class="v">{{ fmt(totals.max_total) }} ₸</div></div>
+</div>
+
+{% if past %}
+<div class="card warm">{{ ic('lock', 15) }} <b>Закрытые волны: {{ past|sort|join(', ') }}.</b>
+  Их планы в редакторе не меняются, а суммы к выплате за них фиксируются при первой правке точки — чтобы изменение плана не пересчитало уже выплаченное.</div>
+{% endif %}
+
+{% for sec, rows in sections %}
+<h2>{% if sec=='СЕТИ' %}{{ ic('link', 17) }}СЕТИ{% else %}{{ sec }}{% endif %} <span class="muted">({{ rows|length }})</span></h2>
+<div class="card pad-t"><div class="scroll">
+<table>
+  <thead><tr><th class="l">Точка</th><th>Бренд</th><th class="l">Город · канал</th>
+    <th>Волна 1</th><th>Волна 2</th><th>Волна 3</th><th>Год</th><th>Приз 110 %</th><th>Команде</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}{% set p = r.p %}
+    <tr>
+      <td class="l"><b>{{ p.name }}</b> <span class="muted">#{{ p.id }}</span></td>
+      <td><span class="tag {{ 'hy' if p.brand=='HY' else 'mc' }}">{{ p.brand }}</span></td>
+      <td class="l">{{ p.city }} · {{ p.channel }}</td>
+      <td class="{{ 'muted' if 1 in past }}">{{ p.w1 }}</td><td class="{{ 'muted' if 2 in past }}">{{ p.w2 }}</td><td class="{{ 'muted' if 3 in past }}">{{ p.w3 }}</td>
+      <td><b>{{ p.target }}</b></td>
+      <td>{{ fmt(p.prize110_kzt) }}</td><td>{{ fmt(p.team110_kzt) }}</td>
+      <td><a class="btn sm ghost" href="{{ url_for('plan_edit', pid=p.id) }}">{{ ic('pencil', 13) }}Изменить</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+{% endfor %}
+
+{% if inactive %}
+<h2>Выведены из программы <span class="muted">({{ inactive|length }})</span></h2>
+<p class="sub">Эти точки не показываются менеджерам и не участвуют в расчёте. Их отгрузки и история сохранены — точку можно вернуть.</p>
+<div class="card pad-t"><div class="scroll">
+<table>
+  <thead><tr><th class="l">Точка</th><th>Бренд</th><th class="l">Город · канал</th><th>Год</th><th></th></tr></thead>
+  <tbody>
+  {% for r in inactive %}{% set p = r.p %}
+    <tr>
+      <td class="l">{{ p.name }} <span class="muted">#{{ p.id }}</span></td>
+      <td><span class="tag {{ 'hy' if p.brand=='HY' else 'mc' }}">{{ p.brand }}</span></td>
+      <td class="l">{{ p.city }} · {{ p.channel }}</td><td>{{ p.target }}</td>
+      <td><div class="rowflex" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap">
+        <a class="btn sm ghost" href="{{ url_for('plan_edit', pid=p.id) }}">{{ ic('pencil', 13) }}Открыть</a>
+        <form method="post" action="{{ url_for('plan_toggle', pid=p.id) }}" style="display:inline">
+          <button class="btn sm">{{ ic('check', 13) }}Вернуть</button></form></div></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+{% endif %}
+{% endblock %}

@@ -79,3 +79,28 @@ class Setting(db.Model):
     чтобы сессии не слетали при каждом перезапуске)."""
     key = db.Column(db.String(40), primary_key=True)
     value = db.Column(db.Text)
+
+class PlanRow(db.Model):
+    """План точки. Источник правды для планов после первого запуска: редактор
+    в админке пишет сюда. program_data.json читается только при пустой таблице.
+    Весь план хранится одним JSON-объектом — так расчёт получает те же поля,
+    что и раньше, а новые поля не требуют миграций."""
+    __tablename__ = 'plan'
+    id = db.Column(db.Integer, primary_key=True)           # = id точки (Outlet.id)
+    data = db.Column(db.Text, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+class PlanLog(db.Model):
+    """Журнал изменений планов: кто, когда, что было и что стало."""
+    __tablename__ = 'plan_log'
+    id = db.Column(db.Integer, primary_key=True)
+    plan_id = db.Column(db.Integer, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    at = db.Column(db.DateTime, default=datetime.utcnow)
+    action = db.Column(db.String(20))       # import | create | edit | deactivate | activate
+    before = db.Column(db.Text)
+    after = db.Column(db.Text)
+    note = db.Column(db.String(300))
+    user = db.relationship('User')

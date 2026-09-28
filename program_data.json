@@ -122,7 +122,13 @@
    "prize100_kzt": 132720,
    "prize110_kzt": 215040,
    "team110_kzt": 90720,
-   "team": "Алматы OFF"
+   "team": "Алматы OFF",
+   "frozen_caps": {
+    "1": {
+     "prize": 70675,
+     "team": 29859
+    }
+   }
   },
   {
    "id": 5,
@@ -202,7 +208,13 @@
    "prize100_kzt": 502320,
    "prize110_kzt": 556640,
    "team110_kzt": 194320,
-   "team": "Алматы OFF"
+   "team": "Алматы OFF",
+   "frozen_caps": {
+    "1": {
+     "prize": 116579,
+     "team": 40697
+    }
+   }
   },
   {
    "id": 9,
@@ -422,7 +434,13 @@
    "prize100_kzt": 304080,
    "prize110_kzt": 493920,
    "team110_kzt": 208320,
-   "team": "Алматы OFF"
+   "team": "Алматы OFF",
+   "frozen_caps": {
+    "1": {
+     "prize": 127985,
+     "team": 54060
+    }
+   }
   },
   {
    "id": 21,
@@ -542,7 +560,13 @@
    "prize100_kzt": 1181040,
    "prize110_kzt": 1915200,
    "team110_kzt": 809200,
-   "team": "Алматы OFF"
+   "team": "Алматы OFF",
+   "frozen_caps": {
+    "1": {
+     "prize": 899268,
+     "team": 379862
+    }
+   }
   },
   {
    "id": 27,

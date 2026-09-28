@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% from '_icons.html' import ic %}
+{% block title %}{{ 'Новая точка' if is_new else plan.name }} · Планы{% endblock %}
+{% block body %}
+<p><a href="{{ url_for('plans') }}">{{ ic('back', 14) }}Все планы</a></p>
+<h1>{{ 'Новая точка' if is_new else plan.name }}{% if not is_new %} <span class="muted">#{{ plan.id }}</span>{% endif %}</h1>
+
+<form method="post" class="card">
+  <h2 style="margin-top:0">Точка</h2>
+  <div class="rowflex" style="gap:12px;align-items:flex-end">
+    <div class="field"><label class="muted" for="f-name">Название на сайте</label>
+      <input type="text" id="f-name" name="name" required value="{{ plan.name }}" placeholder="Galmart (Астана)" style="min-width:260px"></div>
+    <div class="field"><label class="muted" for="f-brand">Бренд</label>
+      {% if is_new %}
+      <select id="f-brand" name="brand">
+        <option value="HY" {{ 'selected' if plan.brand=='HY' }}>Hennessy</option>
+        <option value="MC" {{ 'selected' if plan.brand=='MC' }}>Moët &amp; Chandon</option>
+      </select>
+      {% else %}<input type="text" id="f-brand" value="{{ 'Hennessy' if plan.brand=='HY' else 'Moët & Chandon' }}" disabled>{% endif %}</div>
+    <div class="field"><label class="muted" for="f-city">Город</label>
+      <input type="text" id="f-city" name="city" value="{{ plan.city }}" placeholder="Astana" style="width:140px"></div>
+    <div class="field"><label class="muted" for="f-ch">Канал</label>
+      <select id="f-ch" name="channel">
+        <option value="OFF" {{ 'selected' if plan.channel=='OFF' }}>OFF</option>
+        <option value="ON" {{ 'selected' if plan.channel=='ON' }}>ON</option>
+      </select></div>
+    <div class="field"><label class="muted" for="f-team">Команда</label>
+      <select id="f-team" name="team">
+        {% for t in teams %}<option value="{{ t }}" {{ 'selected' if plan.team==t }}>{{ t }}</option>{% endfor %}
+      </select></div>
+  </div>
+  <p style="margin:14px 0 0"><label><input type="checkbox" name="is_chain" value="1" {{ 'checked' if plan.is_chain }}>
+    Показывать в разделе «СЕТИ» <span class="muted">— для сетей с общим планом на несколько городов</span></label></p>
+
+  <h2>План по волнам <span class="muted">в эквиваленте бутылок</span></h2>
+  <div class="rowflex" style="gap:12px;align-items:flex-end">
+    {% for w in (1, 2, 3) %}
+    <div class="field"><label class="muted" for="f-w{{ w }}">Волна {{ w }} · {{ wavep['w%d' % w] }}{% if w in past %} · закрыта{% endif %}</label>
+      <input id="f-w{{ w }}" name="w{{ w }}" type="number" min="0" step="1" value="{{ plan['w%d' % w] }}" style="width:130px"
+             {{ 'disabled' if w in past }}></div>
+    {% endfor %}
+    <div class="field"><label class="muted">За программу</label><input type="text" value="{{ plan.target }}" disabled style="width:110px"></div>
+  </div>
+  {% if past %}<p class="muted">{{ ic('lock', 12) }} План закрытой волны не меняется.{% if is_new %} Новая точка входит в программу с ближайшей открытой волны.{% endif %}</p>{% endif %}
+  <p class="muted">План волны делится на два месяца поровну. Порог выплаты — 90 % плана волны, к зачёту принимается не больше 110 %.</p>
+
+  <h2>Призы</h2>
+  <p><label><input type="checkbox" name="auto_prizes" value="1" checked id="auto"
+      onchange="document.getElementById('manual').hidden=this.checked">
+    Рассчитать автоматически по формуле программы <span class="muted">— рекомендуется</span></label></p>
+  <div id="manual" hidden>
+    <p class="muted">Ручной ввод — только если суммы согласованы отдельно. Суммы за всю программу, в тенге.</p>
+    <div class="rowflex" style="gap:12px;align-items:flex-end">
+      <div class="field"><label class="muted" for="p90">Точке при 90 %</label><input type="text" id="p90" name="prize90_kzt" value="{{ plan.prize90_kzt }}" style="width:140px"></div>
+      <div class="field"><label class="muted" for="p100">Точке при 100 %</label><input type="text" id="p100" name="prize100_kzt" value="{{ plan.prize100_kzt }}" style="width:140px"></div>
+      <div class="field"><label class="muted" for="p110">Точке при 110 %</label><input type="text" id="p110" name="prize110_kzt" value="{{ plan.prize110_kzt }}" style="width:140px"></div>
+      <div class="field"><label class="muted" for="t110">Команде при 110 %</label><input type="text" id="t110" name="team110_kzt" value="{{ plan.team110_kzt }}" style="width:140px"></div>
+    </div>
+  </div>
+  {% if not is_new %}
+  <p class="muted">Сейчас: точке при 90 / 100 / 110 % — {{ fmt(plan.prize90_kzt) }} / {{ fmt(plan.prize100_kzt) }} / {{ fmt(plan.prize110_kzt) }} ₸, команде при 110 % — {{ fmt(plan.team110_kzt) }} ₸.</p>
+  {% endif %}
+
+  <div class="field" style="margin-top:14px"><label class="muted" for="f-note">Причина изменения (попадёт в журнал)</label>
+    <input type="text" id="f-note" name="note" placeholder="например: пересмотр по итогам встречи с сетью 28.09" style="max-width:560px"></div>
+  <p style="margin-top:16px"><button class="btn">{{ ic('save', 15) }}{{ 'Добавить точку' if is_new else 'Сохранить' }}</button></p>
+</form>
+
+{% if not is_new %}
+<div class="card">
+  <h2 style="margin-top:0">Вывести из программы</h2>
+  <p class="sub">Точка перестанет показываться и участвовать в расчёте. Отгрузки и журнал сохранятся, вернуть можно в один клик.</p>
+  <form method="post" action="{{ url_for('plan_toggle', pid=plan.id) }}"
+        onsubmit="return confirm('Вывести «{{ plan.name }}» из программы?')" class="rowflex">
+    <input type="text" name="note" placeholder="причина" style="min-width:280px">
+    <button class="btn danger sm">{{ ic('trash', 13) }}Вывести</button>
+  </form>
+</div>
+
+<h2>Журнал изменений</h2>
+<div class="card pad-t"><div class="scroll">
+<table>
+  <thead><tr><th class="l">Когда</th><th class="l">Кто</th><th class="l">Действие</th><th class="l">Что изменилось</th></tr></thead>
+  <tbody>
+  {% for h in hist %}
+    <tr>
+      <td class="l">{{ h.at.strftime('%d.%m.%Y %H:%M') }}</td>
+      <td class="l">{{ h.who }}</td>
+      <td class="l">{{ {'import':'перенос','create':'создана','edit':'правка','deactivate':'выведена','activate':'возвращена'}.get(h.action, h.action) }}{% if h.note %}<div class="muted">{{ h.note }}</div>{% endif %}</td>
+      <td class="l">{% for k, b, a in h.diff %}<div><span class="muted">{{ k }}:</span> {{ b }} → <b>{{ a }}</b></div>{% endfor %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+<p class="muted">Время — UTC.</p>
+{% endif %}
+{% endblock %}

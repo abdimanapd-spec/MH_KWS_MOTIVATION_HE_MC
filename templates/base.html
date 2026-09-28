@@ -22,6 +22,7 @@ document.documentElement.setAttribute('data-theme',t);}catch(e){document.documen
       {% if user.role == 'admin' %}
         <a href="{{ url_for('admin') }}" class="{{ 'active' if ep in ['admin','outlet'] }}">{{ ic('grid') }}Дашборд</a>
         <a href="{{ url_for('leaderboard') }}" class="{{ 'active' if ep == 'leaderboard' }}">{{ ic('trophy') }}Рейтинг</a>
+        <a href="{{ url_for('plans') }}" class="{{ 'active' if ep in ['plans','plan_new','plan_edit'] }}">{{ ic('pencil') }}Планы</a>
         <a href="{{ url_for('users') }}" class="{{ 'active' if ep in ['users','user_outlets'] }}">{{ ic('users') }}Пользователи</a>
       {% else %}
         <a href="{{ url_for('dashboard') }}" class="{{ 'active' if ep in ['dashboard','outlet'] }}">{{ ic('pin') }}Мои точки</a>

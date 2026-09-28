@@ -39,6 +39,44 @@ def hf(x):
 
 PLAN_BY_ID = {p['id']: p for p in PLANS}
 
+def load_plans(plans):
+    """Подменяет действующие планы НА МЕСТЕ: PLANS и PLAN_BY_ID — те же объекты,
+    на которые уже ссылается остальной код. Источник — таблица планов в базе
+    (редактор в админке); program_data.json используется только при первом запуске."""
+    plans = sorted(plans, key=lambda p: p['id'])
+    PLANS[:] = plans
+    PLAN_BY_ID.clear()
+    PLAN_BY_ID.update({p['id']: p for p in plans})
+
+# ---------- призы по формуле программы (как в Excel-модели) ----------
+ENTRY = {'HY': 52, 'MC': 58}               # вход точки, $ за бутылку-эквивалент
+
+def prize_rate(brand, tier):
+    """Средневзвешенная ставка приза за программу: волна 1 по повышенной ставке,
+    волны 2–3 по стандартной, веса — доли волн."""
+    s1 = WAVES[brand][0]
+    return s1 * RATE_W1[tier] + (1 - s1) * RATE_STD[tier]
+
+def calc_prizes(brand, target):
+    """Призы точки при выполнении 90/100/110 % и командный бонус при 110 %, в тенге.
+    Та же формула, по которой считались все планы программы."""
+    e = ENTRY[brand]
+    return dict(
+        prize90_kzt=hf(target * 0.9 * e * prize_rate(brand, 'p90')) * FX,
+        prize100_kzt=hf(target * e * prize_rate(brand, 'p100')) * FX,
+        prize110_kzt=hf(target * 1.1 * e * prize_rate(brand, 'p110')) * FX,
+        team110_kzt=hf(target * 1.1 * RSP[brand] * TEAM_RATE) * FX)
+
+def wave_caps(plan, wave):
+    """Потолки волны (приз точке, бонус команде). Для закрытых волн потолки
+    зафиксированы в плане (frozen_caps) — чтобы правка плана задним числом
+    не меняла уже посчитанные и выплаченные суммы."""
+    fz = (plan.get('frozen_caps') or {}).get(str(wave))
+    if fz:
+        return fz['prize'], fz['team']
+    share = WAVES[plan['brand']][wave - 1]
+    return hf(plan['prize110_kzt'] * share), hf(plan['team110_kzt'] * share)
+
 def sku_list(brand):
     return SKUS[brand]
 
@@ -85,14 +123,18 @@ def compute_wave(plan, wave, units_by_sku):
         prize = hf(r * turn * min(ach, 1.1) / ach) if ach else 0
         team = hf(TEAM_RATE * min(bottles, 1.1 * tgt) * RSP[brand] * FX)
     # Потолки: заморожены на уровне базового таргета (значения из модели, доля волны)
-    share = {1: WAVES[brand][0], 2: WAVES[brand][1], 3: WAVES[brand][2]}[wave]
-    cap_prize = hf(plan['prize110_kzt'] * share)
-    cap_team = hf(plan['team110_kzt'] * share)
+    cap_prize, cap_team = wave_caps(plan, wave)
     prize = min(prize, cap_prize)
     team = min(team, cap_team)
     return dict(bottles=round(bottles, 1), target=tgt, ach=ach, turnover=hf(turn),
                 prize=prize, team=team, total=prize + team, tier=(
                     '110%+' if ach >= 1.1 else '100-109%' if ach >= 1.0 else '90-99%' if ach >= 0.9 else '<90%'))
+
+def past_waves(today_month=None):
+    """Волны, которые уже закончились по календарю (последний месяц волны позади)."""
+    from datetime import datetime
+    m = today_month or datetime.now().strftime('%Y-%m')
+    return {w for w, ms in WAVE_MONTHS.items() if ms[-1] < m}
 
 def month_wave(month):
     return MONTH_WAVE[month]
@@ -118,9 +160,9 @@ def wave_potential(plan, wave, level):
     tier = 'p110' if level >= 1.1 else 'p100' if level >= 1.0 else 'p90'
     prize = hf(rate_for(b, wave, tier) * turn)
     team = hf(TEAM_RATE * bottles * RSP[b] * FX)
-    share = WAVES[b][wave - 1]
-    prize = min(prize, hf(plan['prize110_kzt'] * share))
-    team = min(team, hf(plan['team110_kzt'] * share))
+    cap_prize, cap_team = wave_caps(plan, wave)
+    prize = min(prize, cap_prize)
+    team = min(team, cap_team)
     return dict(prize=prize, team=team, total=prize + team)
 
 def plan_potential(plan, level):

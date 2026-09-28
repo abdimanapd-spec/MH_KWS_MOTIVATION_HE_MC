@@ -53,15 +53,19 @@
         </form>
       </td>
       <td>
-        {% if u.role!='admin' %}
         <div class="rowflex" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap">
+        <form method="post" action="{{ url_for('user_role', uid=u.id) }}" style="display:inline"
+              onsubmit="return confirm('{{ 'Снять права администратора с' if u.role=='admin' else 'Сделать администратором:' }} {{ u.name }}?')">
+          <button class="btn sm ghost" title="{{ 'Снять права администратора' if u.role=='admin' else 'Дать полный доступ: планы, пользователи, закрытие месяцев' }}">{{ ic('shield', 13) }}{{ 'снять админа' if u.role=='admin' else 'сделать админом' }}</button>
+        </form>
+        {% if u.role!='admin' %}
           <a class="btn sm ghost" href="{{ url_for('user_outlets', uid=u.id) }}">{{ ic('pin', 13) }}Точки</a>
           <form method="post" action="{{ url_for('user_delete', uid=u.id) }}" style="display:inline"
                 onsubmit="return confirm('Удалить пользователя {{ u.name }}? Его точки останутся без владельца.')">
             <button class="btn sm danger" aria-label="Удалить пользователя {{ u.name }}">{{ ic('trash', 13) }}</button>
           </form>
-        </div>
         {% endif %}
+        </div>
       </td>
     </tr>
   {% endfor %}
