@@ -27,6 +27,10 @@ def db_uri():
     uri = (os.environ.get('DATABASE_URL') or os.environ.get('DATABASE_PUBLIC_URL') or '').strip()
     if uri.startswith('postgres://'):
         uri = uri.replace('postgres://', 'postgresql://', 1)
+    # SQLAlchemy 2.1 по умолчанию берёт драйвер psycopg (v3), а у нас psycopg2 —
+    # указываем драйвер явно, чтобы обновление библиотеки не роняло сайт.
+    if uri.startswith('postgresql://'):
+        uri = uri.replace('postgresql://', 'postgresql+psycopg2://', 1)
     if uri:
         return uri
     on_railway = bool(os.environ.get('RAILWAY_ENVIRONMENT_ID') or os.environ.get('RAILWAY_SERVICE_ID'))
