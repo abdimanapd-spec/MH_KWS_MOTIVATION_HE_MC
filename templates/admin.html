@@ -2,7 +2,10 @@
 {% from '_icons.html' import ic %}
 {% block body %}
 <h1>Дашборд KWS</h1>
-<p class="sub">Итоги программы, прогресс по волнам, месячное закрытие и рейтинг.</p>
+<div class="rowflex" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+  <p class="sub" style="margin:0">Итоги программы, прогресс по волнам, месячное закрытие и рейтинг.</p>
+  <a class="btn sm" href="{{ url_for('export_xlsx') }}" title="Факт по точкам, волнам, месяцам, менеджерам и все отгрузки">{{ ic('download', 14) }}Скачать Excel</a>
+</div>
 
 {% set earned = all_rows|sum(attribute='earned') %}
 <div class="kpis">

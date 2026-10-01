@@ -6,7 +6,7 @@ import os, json, functools, secrets
 from datetime import datetime
 from collections import defaultdict
 from flask import (Flask, render_template, request, redirect, url_for, session,
-                   flash, abort, jsonify, Response)
+                   flash, abort, jsonify, Response, send_file)
 from models import (db, User, Outlet, Entry, MonthClose, Setting,
                     OutletAccess, TeamAccess, PlanRow, PlanLog)
 import program as P
@@ -526,6 +526,17 @@ def register_routes(app):
                                closed=closed, wave_tot=wave_tot, team_tot=team_tot,
                                totals=P.program_totals(), lead=leaderboards(rows, month),
                                month=month)
+
+    @app.route('/admin/export.xlsx')
+    @login_required('admin')
+    def export_xlsx():
+        from export_xlsx import build
+        rows = [outlet_summary(o) for o in active_q().all()]
+        users = {u.id: u for u in User.query.all()}
+        buf = build(rows, Entry.query.all(), users, closed_months())
+        name = f"MH_выполнение_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+        return send_file(buf, as_attachment=True, download_name=name,
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
     @app.route('/admin/close', methods=['POST'])
     @login_required('admin')
